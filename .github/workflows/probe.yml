@@ -1,0 +1,58 @@
+name: Build Cockpit Probe APK
+
+on:
+  push:
+    paths:
+      - "probe/**"
+      - "gradle/**"
+      - "*.gradle.kts"
+      - "gradle.properties"
+      - ".github/workflows/probe.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: probe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        env:
+          # Optional. Add a MAPS_API_KEY repository secret to enable the Google map test.
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+        run: |
+          chmod +x gradlew
+          ./gradlew :probe:assembleDebug --stacktrace
+          cp probe/build/outputs/apk/debug/probe-debug.apk cockpit-probe.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cockpit-probe
+          path: cockpit-probe.apk
+
+      # Fixed download link for the car's browser:
+      # https://github.com/<owner>/<repo>/releases/download/probe-latest/cockpit-probe.apk
+      - name: Publish to the probe-latest release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete probe-latest --cleanup-tag --yes || true
+          gh release create probe-latest cockpit-probe.apk \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "Cockpit Probe (latest test build)" \
+            --notes "Phase 0 device probe built from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}. Install on the head unit through Chrome."
