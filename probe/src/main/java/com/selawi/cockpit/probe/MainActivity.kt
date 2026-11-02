@@ -19,7 +19,7 @@ class MainActivity : ComponentActivity() {
     }
 
     /** Hides or shows the head unit's status and navigation bars. The firmware may ignore it. */
-    fun setImmersive(enabled: Boolean) {
+    fun setFullScreen(enabled: Boolean) {
         val controller = WindowInsetsControllerCompat(window, window.decorView)
         if (enabled) {
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE

@@ -46,7 +46,7 @@ fun ScreenTestScreen(activity: MainActivity) {
         ButtonRow {
             BigButton(if (immersive) "Exit full screen" else "Go full screen") {
                 immersive = !immersive
-                activity.setImmersive(immersive)
+                activity.setFullScreen(immersive)
             }
             BigButton(if (keepOn) "Keep screen on: ON" else "Keep screen on: OFF") {
                 keepOn = !keepOn
