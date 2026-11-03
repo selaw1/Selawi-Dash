@@ -116,7 +116,7 @@ class ScreenshotTest {
             // Marks this as a preview, so the 3D car draws its stand-in instead of the native engine.
             CompositionLocalProvider(LocalInspectionMode provides true) {
                 CockpitTheme(dark) {
-                    DashFrame(destination, onSelect = {}) { compact -> content(compact) }
+                    DashFrame(destination, onSelect = {}, pinned = allApps.take(4)) { compact -> content(compact) }
                 }
             }
         }

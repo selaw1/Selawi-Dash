@@ -22,6 +22,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -84,7 +85,7 @@ fun Car3D(state: DrivingState, modifier: Modifier = Modifier) {
         }
     }
 
-    Box(modifier) {
+    Box(modifier.clipToBounds()) {
         Canvas(Modifier.fillMaxSize()) { drawScene(drive, travel, steer) }
         if (LocalInspectionMode.current) {
             CarStandIn(Modifier.fillMaxSize())

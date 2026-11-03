@@ -29,11 +29,12 @@ object CarScene {
         val tanV = tan(Math.toRadians(V_FOV_DEG / 2))
         val tanH = tanV * aspect
         val parked = max(1.25 / tanH, 0.62 / tanV) + 1.0
-        val dist = parked * (1.0 - 0.06 * k)
-        val angle = Math.toRadians(30.0 * k)
-        val height = dist * (0.19 + 0.12 * k)
+        val dist = parked * (1.0 + 0.05 * k)
+        // A slight angle shows the side and the turning wheels while the road still runs to the middle.
+        val angle = Math.toRadians(13.0 * k)
+        val height = dist * (0.19 + 0.15 * k)
         val eye = doubleArrayOf(dist * sin(angle), height, dist * cos(angle))
-        val target = doubleArrayOf(0.0, 0.24 - 0.08 * k, -0.6 * k)
+        val target = doubleArrayOf(0.0, 0.24 - 0.14 * k, -2.6 * k)
         return View(eye, target, aspect)
     }
 

@@ -90,8 +90,7 @@ fun MediaCard(
     val tint = rememberCoverTint(playing)
     CockpitCard(modifier, padding = Space.l) {
         Row(Modifier.fillMaxWidth().weight(1f, fill = !compact), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
-            val coverModifier = if (compact) Modifier.size(120.dp) else
-                Modifier.fillMaxHeight().widthIn(max = 280.dp).aspectRatio(1f, matchHeightConstraintsFirst = true)
+            val coverModifier = Modifier.size(if (compact) 120.dp else 260.dp)
             Artwork(playing.art, coverModifier.align(Alignment.CenterVertically), tint)
             Column(Modifier.weight(1f).align(Alignment.CenterVertically)) {
                 Text(
@@ -141,7 +140,7 @@ private fun Artwork(art: ImageBitmap?, modifier: Modifier, tint: Color) {
         transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(400)) },
         label = "art",
         modifier = modifier
-            .shadow(if (art != null) 24.dp else 0.dp, shape, ambientColor = tint, spotColor = tint)
+            .shadow(if (art != null) 16.dp else 0.dp, shape, ambientColor = tint.copy(alpha = 0.5f), spotColor = tint.copy(alpha = 0.5f))
             .clip(shape)
             .background(CockpitColors.SurfaceHigh),
     ) { image ->
