@@ -36,6 +36,11 @@ android {
         debug { signingConfig = signingConfigs.getByName("debug") }
     }
 
+    androidResources {
+        // The car model is already compressed; storing it as-is keeps it fast to read.
+        noCompress += "glb"
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -59,4 +64,6 @@ dependencies {
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.maplibre)
+    implementation(libs.filament.android)
+    implementation(libs.gltfio.android)
 }

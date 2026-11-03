@@ -38,7 +38,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import com.selawi.cockpit.features.vehicle.CarModel
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -85,14 +87,28 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         val access by app.media.sessionAccess.collectAsStateWithLifecycle()
         val pinned by app.apps.pinned.collectAsStateWithLifecycle()
         val allApps by app.apps.apps.collectAsStateWithLifecycle()
+        val driving by app.driving.state.collectAsStateWithLifecycle()
         val fullScreen by app.settings.fullScreen.collectAsStateWithLifecycle(initialValue = true)
         val keepOn by app.settings.keepScreenOn.collectAsStateWithLifecycle(initialValue = false)
         val controls = remember { MediaControls.of(app.media) }
+        // The driver's own car model (.glb). Copied into the app so it survives the USB stick being removed.
+        val carPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                scope.launch(Dispatchers.IO) {
+                    runCatching {
+                        activity.contentResolver.openInputStream(uri)!!.use { input ->
+                            CarModel.customFile(activity).outputStream().use { input.copyTo(it) }
+                        }
+                    }
+                }
+            }
+        }
         val openApp: (AppInfo) -> Unit = { activity.tryStart(app.apps.launch(it), "${it.label} could not be opened") }
 
         // Location makes the map follow the car and the weather local. The cockpit works without it.
         val locationRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             app.weather.refreshNow()
+            app.driving.start()
         }
         LaunchedEffect(Unit) {
             if (!activity.hasLocationPermission()) {
@@ -110,7 +126,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     when (target) {
                         Destination.Home -> DashboardScreen(
                             compact = compact,
-                            state = DashboardState(weather, playing, pinned),
+                            state = DashboardState(weather, playing, pinned, driving),
                             controls = controls,
                             actions = DashboardActions(
                                 onDriveMode = { PhoneNavigation.openBeside(activity) },
@@ -149,6 +165,8 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                             onKeepOn = { scope.launch { app.settings.setKeepScreenOn(it) } },
                             onAllowAccess = { NotificationAccess.open(activity) },
                             onCarHome = { activity.openCarHome() },
+                            onChooseCar = { carPicker.launch(arrayOf("*/*")) },
+                            onDefaultCar = { CarModel.customFile(activity).delete() },
                         )
                     }
                 }

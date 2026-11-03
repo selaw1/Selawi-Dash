@@ -36,6 +36,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onStart() {
+        super.onStart()
+        // GPS speed only while the cockpit is on screen.
+        (application as CockpitApplication).driving.start()
+    }
+
+    override fun onStop() {
+        (application as CockpitApplication).driving.stop()
+        super.onStop()
+    }
+
     override fun onResume() {
         super.onResume()
         // Music apps opened from the cockpit may have changed while we were away.

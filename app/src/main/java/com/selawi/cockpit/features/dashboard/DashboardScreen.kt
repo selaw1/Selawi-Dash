@@ -46,7 +46,8 @@ import com.selawi.cockpit.features.apps.AppTile
 import com.selawi.cockpit.features.media.MediaCard
 import com.selawi.cockpit.features.media.MediaControls
 import com.selawi.cockpit.features.media.NowPlaying
-import com.selawi.cockpit.features.navigation.CarMap
+import com.selawi.cockpit.features.vehicle.Car3D
+import com.selawi.cockpit.features.vehicle.DrivingState
 import com.selawi.cockpit.features.weather.Weather
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
@@ -66,6 +67,7 @@ class DashboardState(
     val weather: Weather?,
     val playing: NowPlaying,
     val pinned: List<AppInfo>,
+    val driving: DrivingState = DrivingState(),
     /** Fixed time for screenshots; null shows the live clock. */
     val fixedTime: LocalDateTime? = null,
 )
@@ -81,7 +83,7 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, action
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
         Column(Modifier.weight(1.1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(Space.m)) {
             ClockWeatherCard(state, Modifier.fillMaxWidth().weight(1f))
-            NavigationCard(actions, Modifier.fillMaxWidth().weight(1.15f))
+            VehicleCard(state.driving, actions, Modifier.fillMaxWidth().weight(1.15f))
         }
         MediaCard(state.playing, controls, Modifier.weight(1.15f).fillMaxHeight())
         Column(Modifier.weight(0.9f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(Space.m)) {
@@ -163,30 +165,21 @@ private fun WeatherLine(weather: Weather?) {
     }
 }
 
+/** The 3D car, with phone navigation one tap away. The full map lives in the Map tab. */
 @Composable
-private fun NavigationCard(actions: DashboardActions, modifier: Modifier) {
+private fun VehicleCard(driving: DrivingState, actions: DashboardActions, modifier: Modifier) {
     CockpitCard(modifier, padding = 0.dp) {
         Box(Modifier.fillMaxSize()) {
-            // Preview only; tap to open the full map.
-            CarMap(Modifier.fillMaxSize(), interactive = false)
-            Box(Modifier.fillMaxSize().clickable(onClick = actions.onOpenMap))
+            Car3D(driving, Modifier.fillMaxSize())
             Row(
                 Modifier
                     .align(Alignment.BottomStart)
                     .fillMaxWidth()
-                    .background(CockpitColors.Background.copy(alpha = 0.82f))
                     .padding(Space.m),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(Space.m),
+                horizontalArrangement = Arrangement.spacedBy(Space.s, Alignment.End),
             ) {
-                Column(Modifier.weight(1f)) {
-                    SectionLabel("Navigation")
-                    Text(
-                        "Google Maps from your phone",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = CockpitColors.TextPrimary,
-                    )
-                }
+                PillButton("Map", icon = CockpitIcons.Map, onClick = actions.onOpenMap)
                 PillButton("Drive mode", icon = CockpitIcons.SplitScreen, primary = true, onClick = actions.onDriveMode)
             }
         }

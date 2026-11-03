@@ -35,6 +35,8 @@ fun SettingsScreen(
     onKeepOn: (Boolean) -> Unit,
     onAllowAccess: () -> Unit,
     onCarHome: () -> Unit,
+    onChooseCar: () -> Unit = {},
+    onDefaultCar: () -> Unit = {},
 ) {
 
     Column(
@@ -66,7 +68,28 @@ fun SettingsScreen(
         CockpitCard(Modifier.fillMaxWidth()) {
             SectionLabel("Car")
             Spacer(Modifier.height(Space.s))
-            PillButton("Open BYD home", onClick = onCarHome)
+            Text(
+                "3D car on the dashboard: choose any .glb model you are allowed to use, from the car's storage or a USB stick. It appears the next time you open Home.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = CockpitColors.TextSecondary,
+            )
+            Spacer(Modifier.height(Space.s))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                PillButton("Choose car model", onClick = onChooseCar)
+                PillButton("Use default car", onClick = onDefaultCar)
+                PillButton("Open BYD home", onClick = onCarHome)
+            }
+        }
+        CockpitCard(Modifier.fillMaxWidth()) {
+            SectionLabel("Credits")
+            Spacer(Modifier.height(Space.s))
+            Text(
+                "Default 3D car: \"Car Concept\" from the Khronos glTF Sample Assets, © 2024 Darmstadt Graphics Group GmbH, " +
+                    "model and textures by Eric Chadwick, licensed CC BY 4.0. Logos removed. " +
+                    "Map data © OpenStreetMap contributors, tiles by OpenFreeMap. Weather by Open-Meteo.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = CockpitColors.TextSecondary,
+            )
         }
         Text(
             "Selawi Cockpit ${BuildConfig.VERSION_NAME}",

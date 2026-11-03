@@ -4,6 +4,7 @@ import android.app.Application
 import com.selawi.cockpit.data.local.SettingsStore
 import com.selawi.cockpit.features.apps.AppsRepository
 import com.selawi.cockpit.features.media.MediaRepository
+import com.selawi.cockpit.features.vehicle.DrivingRepository
 import com.selawi.cockpit.features.weather.WeatherRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,6 +21,8 @@ class CockpitApplication : Application() {
         private set
     lateinit var weather: WeatherRepository
         private set
+    lateinit var driving: DrivingRepository
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -27,5 +30,6 @@ class CockpitApplication : Application() {
         apps = AppsRepository(this, settings, scope)
         media = MediaRepository(this, scope)
         weather = WeatherRepository(this, scope)
+        driving = DrivingRepository(this)
     }
 }

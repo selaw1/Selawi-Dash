@@ -28,6 +28,7 @@ import com.selawi.cockpit.features.media.MediaSource
 import com.selawi.cockpit.features.media.NowPlaying
 import com.selawi.cockpit.features.navigation.MapScreen
 import com.selawi.cockpit.features.settings.SettingsScreen
+import com.selawi.cockpit.features.vehicle.DrivingState
 import com.selawi.cockpit.features.weather.Weather
 import org.junit.Rule
 import org.junit.Test
@@ -77,6 +78,14 @@ class ScreenshotTest {
         )
     }
 
+    @Test
+    fun dashboardDriving() {
+        driving = DrivingState(speedKmh = 62, driving = true)
+        shot(Destination.Home) { compact -> Dashboard(compact) }
+    }
+
+    private var driving = DrivingState()
+
     @Composable
     private fun Dashboard(compact: Boolean) {
         DashboardScreen(
@@ -85,6 +94,7 @@ class ScreenshotTest {
                 weather = Weather(27, 31, 18, "Mostly clear", isDay = true, place = "Amman"),
                 playing = playing,
                 pinned = allApps.take(5),
+                driving = driving,
                 fixedTime = LocalDateTime.of(2026, 11, 3, 12, 51),
             ),
             controls = MediaControls.None,
