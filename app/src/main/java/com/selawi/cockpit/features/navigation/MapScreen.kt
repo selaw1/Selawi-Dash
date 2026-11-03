@@ -29,9 +29,9 @@ import com.selawi.cockpit.core.design.ScreenTitle
 import com.selawi.cockpit.core.design.SectionLabel
 import com.selawi.cockpit.core.design.Space
 
-/** Full map screen with a recenter button and the phone navigation shortcut. */
+/** Full map screen with a recentre button. */
 @Composable
-fun MapScreen(onDriveMode: () -> Unit, onOpenPhoneNav: () -> Unit) {
+fun MapScreen() {
     val controller = remember { MapController() }
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
         Box(
@@ -46,22 +46,6 @@ fun MapScreen(onDriveMode: () -> Unit, onOpenPhoneNav: () -> Unit) {
                 "Centre on the car",
                 modifier = Modifier.align(Alignment.BottomEnd).padding(Space.m),
             ) { controller.recenter?.invoke() }
-        }
-        Column(Modifier.width(320.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(Space.m)) {
-            ScreenTitle("Map")
-            CockpitCard(Modifier.fillMaxWidth()) {
-                SectionLabel("Navigate with your phone")
-                Spacer(Modifier.height(Space.s))
-                Text(
-                    "Google Maps runs on your phone and shows here through DiAuto.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = CockpitColors.TextSecondary,
-                )
-                Spacer(Modifier.height(Space.m))
-                PillButton("Drive mode", Modifier.fillMaxWidth(), icon = CockpitIcons.SplitScreen, primary = true, onClick = onDriveMode)
-                Spacer(Modifier.height(Space.s))
-                PillButton("Open DiAuto", Modifier.fillMaxWidth(), icon = CockpitIcons.Navigation, onClick = onOpenPhoneNav)
-            }
         }
     }
 }

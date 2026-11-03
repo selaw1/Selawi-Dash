@@ -59,8 +59,6 @@ import java.time.format.DateTimeFormatter
 import java.util.Locale
 
 class DashboardActions(
-    val onDriveMode: () -> Unit,
-    val onOpenMap: () -> Unit,
     val onOpenAssistant: () -> Unit,
 )
 
@@ -205,8 +203,8 @@ private fun VehicleCard(driving: DrivingState, actions: DashboardActions, modifi
             PillButton(
                 if (showMap) "Car" else "Map",
                 icon = if (showMap) CockpitIcons.Navigation else CockpitIcons.Map,
+                primary = true,
             ) { showMap = !showMap }
-            PillButton("Drive mode", icon = CockpitIcons.SplitScreen, primary = true, onClick = actions.onDriveMode)
         }
     }
 }

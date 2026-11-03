@@ -76,7 +76,6 @@ import com.selawi.cockpit.features.media.MediaControls
 import com.selawi.cockpit.features.media.NotificationAccess
 import com.selawi.cockpit.features.media.MediaScreen
 import com.selawi.cockpit.features.navigation.MapScreen
-import com.selawi.cockpit.features.navigation.PhoneNavigation
 import com.selawi.cockpit.features.settings.SettingsScreen
 
 enum class Destination(val label: String, val icon: ImageVector) {
@@ -161,15 +160,10 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                         state = DashboardState(weather, playing, driving),
                         controls = controls,
                         actions = DashboardActions(
-                            onDriveMode = { PhoneNavigation.openBeside(activity) },
-                            onOpenMap = { destination = Destination.Map },
                             onOpenAssistant = { destination = Destination.Assistant },
                         ),
                     )
-                    Destination.Map -> MapScreen(
-                        onDriveMode = { PhoneNavigation.openBeside(activity) },
-                        onOpenPhoneNav = { PhoneNavigation.open(activity) },
-                    )
+                    Destination.Map -> MapScreen()
                     Destination.Media -> MediaScreen(
                         playing = playing,
                         access = access,

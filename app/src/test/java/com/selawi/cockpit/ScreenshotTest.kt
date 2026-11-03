@@ -58,7 +58,7 @@ class ScreenshotTest {
     }
 
     @Test
-    fun map() = shot(Destination.Map) { MapScreen(onDriveMode = {}, onOpenPhoneNav = {}) }
+    fun map() = shot(Destination.Map) { MapScreen() }
 
     @Test
     fun media() = shot(Destination.Media) {
@@ -111,7 +111,7 @@ class ScreenshotTest {
                 fixedTime = LocalDateTime.of(2026, 11, 3, 12, 51),
             ),
             controls = MediaControls.None,
-            actions = DashboardActions({}, {}, {}),
+            actions = DashboardActions({}),
         )
     }
 
