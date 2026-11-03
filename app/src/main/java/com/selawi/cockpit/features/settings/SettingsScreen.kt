@@ -32,6 +32,7 @@ class SettingsState(
     val theme: ThemeMode,
     val crash: String?,
     val accent: androidx.compose.ui.graphics.Color? = null,
+    val coverStatus: String = "",
 )
 
 class SettingsActions(
@@ -104,6 +105,12 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
         }
         CockpitCard(Modifier.fillMaxWidth()) {
             SectionLabel("Problem report")
+            Spacer(Modifier.height(Space.s))
+            Text(
+                "Last cover: ${state.coverStatus}",
+                style = MaterialTheme.typography.bodyMedium,
+                color = CockpitColors.TextSecondary,
+            )
             Spacer(Modifier.height(Space.s))
             if (state.crash == null) {
                 Text("No crashes recorded.", style = MaterialTheme.typography.bodyMedium, color = CockpitColors.TextSecondary)

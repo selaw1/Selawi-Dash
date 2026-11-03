@@ -114,6 +114,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         val allApps by app.apps.apps.collectAsStateWithLifecycle()
         val driving by app.driving.state.collectAsStateWithLifecycle()
         val call by app.calls.call.collectAsStateWithLifecycle()
+        val coverStatus by app.media.coverStatus.collectAsStateWithLifecycle()
         val fullScreen by app.settings.fullScreen.collectAsStateWithLifecycle(initialValue = true)
         val keepOn by app.settings.keepScreenOn.collectAsStateWithLifecycle(initialValue = false)
         var crash by remember { mutableStateOf(CrashLog.read(activity)) }
@@ -169,7 +170,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     }
                     Destination.Assistant -> Box(Modifier.padding(Space.l)) { AssistantScreen() }
                     Destination.Settings -> Box(Modifier.padding(Space.l)) { SettingsScreen(
-                        state = SettingsState(fullScreen, keepOn, themeMode, crash, accent),
+                        state = SettingsState(fullScreen, keepOn, themeMode, crash, accent, coverStatus),
                         actions = SettingsActions(
                             onFullScreen = { scope.launch { app.settings.setFullScreen(it) } },
                             onKeepOn = { scope.launch { app.settings.setKeepScreenOn(it) } },

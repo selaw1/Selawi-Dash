@@ -26,6 +26,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -84,7 +86,17 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
     private var lastArtKey: String? = null
     private var lastArt: ImageBitmap? = null
     private var lastPlayingPackage: String? = null
-    private val artCache = mutableMapOf<String, ImageBitmap?>()
+    private val artCache = mutableMapOf<String, ImageBitmap>()
+    private val attempts = mutableMapOf<String, Attempt>()
+    private val loading = mutableSetOf<String>()
+    private var keySince = 0L
+    private val lookupLock = Mutex()
+    private var lastLookupAt = 0L
+    private var lookupPausedUntil = 0L
+
+    private val _coverStatus = MutableStateFlow("No song yet")
+    /** Where the last cover came from, or why there was none; shown in Settings. */
+    val coverStatus: StateFlow<String> = _coverStatus
 
     // Shown at once when the driver taps play/pause, and kept briefly while the phone catches up,
     // so a slow Bluetooth round trip never makes the button flick back.
@@ -183,14 +195,22 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
         val title = meta?.getString(MediaMetadata.METADATA_KEY_TITLE).orEmpty()
         val artist = meta?.getString(MediaMetadata.METADATA_KEY_ARTIST)
             ?: meta?.getString(MediaMetadata.METADATA_KEY_ALBUM_ARTIST).orEmpty()
-        val artKey = "${active.packageName}/$title/$artist"
+        val artKey = songKey(title, artist)
+        val now = SystemClock.elapsedRealtime()
         if (artKey != lastArtKey) {
             lastArtKey = artKey
+            keySince = now
+            lastArt = null
+        }
+        if (lastArt == null) {
+            // Checked on every update: Bluetooth often sends the cover link a moment after the title.
             val bitmap: Bitmap? = meta?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
                 ?: meta?.getBitmap(MediaMetadata.METADATA_KEY_ART)
                 ?: meta?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
             lastArt = bitmap?.asImageBitmap() ?: artCache[artKey]
-            if (lastArt == null && artKey !in artCache && title.isNotBlank()) {
+            if (bitmap != null) _coverStatus.value = "From the player"
+            // Wait until the song's details have settled, so one song makes one lookup.
+            if (lastArt == null && title.isNotBlank() && now - keySince > 1200) {
                 val uris = listOfNotNull(
                     meta?.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI),
                     meta?.getString(MediaMetadata.METADATA_KEY_ART_URI),
@@ -219,10 +239,14 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
      * Cover for a song that arrived without one. Bluetooth players usually hand the cover over as
      * a link to the car's Bluetooth service rather than as an image, so that is tried first; if
      * there is still nothing, the cover is looked up by title and artist in Apple's free iTunes
-     * search. Results are remembered per song.
+     * search. Found covers are kept per song; failures are retried later, up to four times.
      */
     private fun loadArt(key: String, uris: List<String>, title: String, artist: String) {
-        artCache[key] = null
+        if (key in loading) return
+        val attempt = attempts[key]
+        val now = SystemClock.elapsedRealtime()
+        if (attempt != null && (attempt.count >= 4 || now < attempt.retryAt)) return
+        loading += key
         scope.launch {
             val art = withContext(Dispatchers.IO) {
                 uris.firstNotNullOfOrNull { uri ->
@@ -231,26 +255,89 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
                             BitmapFactory.decodeStream(it)?.asImageBitmap()
                         }
                     }.getOrNull()
-                } ?: lookUpCover(title, artist)
+                }?.also { _coverStatus.value = "From Bluetooth" } ?: lookupLock.withLock { lookUpCover(title, artist) }
             }
-            artCache[key] = art
-            if (art != null && lastArtKey == key) {
-                lastArt = art
-                _nowPlaying.value = _nowPlaying.value.copy(art = art)
+            loading -= key
+            if (art != null) {
+                artCache[key] = art
+                attempts.remove(key)
+                if (lastArtKey == key) {
+                    lastArt = art
+                    _nowPlaying.value = _nowPlaying.value.copy(art = art)
+                }
+            } else {
+                val count = (attempts[key]?.count ?: 0) + 1
+                attempts[key] = Attempt(count, SystemClock.elapsedRealtime() + 20_000L * count)
             }
         }
     }
 
-    private fun lookUpCover(title: String, artist: String): ImageBitmap? = runCatching {
-        val term = URLEncoder.encode("$artist $title".trim(), "UTF-8")
-        val json = JSONObject(httpGet("https://itunes.apple.com/search?term=$term&media=music&entity=song&limit=1").decodeToString())
-        val results = json.getJSONArray("results")
+    /** Runs one lookup at a time, spaced out, and pauses for a minute when Apple asks it to slow down. */
+    private suspend fun lookUpCover(title: String, artist: String): ImageBitmap? {
+        val now = SystemClock.elapsedRealtime()
+        if (now < lookupPausedUntil) {
+            _coverStatus.value = "Cover search paused (too many requests); retrying soon"
+            return null
+        }
+        val wait = lastLookupAt + 2500 - now
+        if (wait > 0) delay(wait)
+        lastLookupAt = SystemClock.elapsedRealtime()
+        val cleanTitle = cleanTitle(title)
+        val mainArtist = mainArtist(artist)
+        return try {
+            val best = search("$mainArtist $cleanTitle".trim(), mainArtist)
+                ?: search(cleanTitle, mainArtist)
+            if (best == null) {
+                _coverStatus.value = "No cover found for \"$cleanTitle\""
+                null
+            } else {
+                val bytes = httpGet(best.replace("100x100bb", "600x600bb"))
+                BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                    ?.also { _coverStatus.value = "From iTunes search" }
+            }
+        } catch (e: HttpStatusException) {
+            if (e.code == 403 || e.code == 429) {
+                lookupPausedUntil = SystemClock.elapsedRealtime() + 60_000
+                _coverStatus.value = "Cover search busy (HTTP ${e.code}); retrying in a minute"
+            } else {
+                _coverStatus.value = "Cover search failed (HTTP ${e.code})"
+            }
+            null
+        } catch (e: Exception) {
+            _coverStatus.value = "Cover search failed: ${e.javaClass.simpleName} (no internet?)"
+            null
+        }
+    }
+
+    /** Artwork link of the best match, preferring a result by the same artist. */
+    private fun search(term: String, artist: String): String? {
+        if (term.isBlank()) return null
+        val url = "https://itunes.apple.com/search?term=${URLEncoder.encode(term, "UTF-8")}&media=music&entity=song&limit=5"
+        val results = JSONObject(httpGet(url).decodeToString()).getJSONArray("results")
         if (results.length() == 0) return null
-        val small = results.getJSONObject(0).optString("artworkUrl100")
-        if (small.isEmpty()) return null
-        val bytes = httpGet(small.replace("100x100bb", "600x600bb"))
-        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
-    }.getOrNull()
+        val all = (0 until results.length()).map { results.getJSONObject(it) }
+        val match = all.firstOrNull { artist.isNotBlank() && it.optString("artistName").contains(artist, ignoreCase = true) }
+            ?: all.first()
+        return match.optString("artworkUrl100").takeIf { it.isNotEmpty() }
+    }
+
+    private class Attempt(val count: Int, val retryAt: Long)
+
+    private class HttpStatusException(val code: Int) : Exception("HTTP $code")
+
+    private fun songKey(title: String, artist: String) = cleanTitle(title).lowercase() + "|" + mainArtist(artist).lowercase()
+
+    /** "Song (feat. X) - Remastered 2011" → "Song". */
+    private fun cleanTitle(title: String) = title
+        .replace(Regex("\\s*[(\\[].*?[)\\]]"), "")
+        .replace(Regex("\\s+-\\s+.*$"), "")
+        .trim()
+
+    /** "Artist A, Artist B & C" → "Artist A". */
+    private fun mainArtist(artist: String) = artist
+        .split(Regex(",|&| feat\\.? | ft\\.? | x ", RegexOption.IGNORE_CASE))
+        .first()
+        .trim()
 
     /**
      * Connects to every app that offers a media browser service: the documented way car screens
@@ -365,7 +452,10 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 8000
         c.readTimeout = 8000
+        c.setRequestProperty("User-Agent", "SelawiDash/1.0 (Android)")
         return try {
+            val code = c.responseCode
+            if (code !in 200..299) throw HttpStatusException(code)
             c.inputStream.use { it.readBytes() }
         } finally {
             c.disconnect()
