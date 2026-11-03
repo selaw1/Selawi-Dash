@@ -163,9 +163,12 @@ GitHub Actions builds the APK on every push that touches the probe
 - Cockpit targets: minSdk 31 is safe for this car, but keep **minSdk 26** so other BYD models can install it. arm64 only.
 - Layout target: 1280 x 720 dp full screen, 1280 x 604 dp with BYD bars. The bottom BYD bar holds climate
   controls, so the cockpit should let the driver show it again easily.
-- **Maps:** the map panel inside the cockpit uses MapLibre (free, no Google). An embedded Google map is not
-  possible on this car without genuine Play Services. Turn-by-turn uses Waze (installed, works without Google),
-  either as handoff or in split screen. Google Maps the app is not installed and needs Play Services to run well.
+- **Maps (owner's decision):** navigation comes from the phone. The driver navigates in Google Maps on the
+  phone and the car shows it through Android Auto projection (DiAuto today). No Waze. The cockpit sits beside
+  DiAuto in BYD's split screen, and a navigation button opens DiAuto. The free MapLibre map stays available as
+  a map panel when no phone is connected. DiAuto (AGPL-3.0) exposes no interface for other apps to show its map,
+  so embedding it inside the cockpit is not possible today. Building our own Android Auto receiver is a large,
+  licence-sensitive project and is not planned.
 - **Media:** controls work today through media keys. Track title and artwork need notification access.
 - **Voice:** the microphone works, but the car has no usable speech recognition or English/Arabic TTS. The
   assistant must record audio itself and use cloud speech-to-text and text-to-speech through our backend
@@ -174,5 +177,5 @@ GitHub Actions builds the APK on every push that touches the probe
 ### Still to test
 
 1. **Media → Allow access**: does a settings screen open, or a "not supported" message?
-2. **Maps → Waze: split screen** (added in 0.1.5), and the car's own split-screen button with the probe open.
+2. The car's split-screen button with the probe on one side and DiAuto on the other.
 3. Reboot: turn the car off and on, then open the probe again.
