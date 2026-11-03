@@ -107,6 +107,14 @@ fun MapsScreen() {
                     "Waze is not installed",
                 )
             }
+            BigButton("Waze: split screen") {
+                context.tryStart(
+                    Intent(Intent.ACTION_VIEW, Uri.parse("https://waze.com/ul?ll=$TEST_LAT,$TEST_LNG&navigate=yes"))
+                        .setPackage("com.waze")
+                        .addFlags(Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT or Intent.FLAG_ACTIVITY_MULTIPLE_TASK),
+                    "Waze is not installed",
+                )
+            }
             BigButton("Any map app") {
                 context.tryStart(
                     Intent.createChooser(Intent(Intent.ACTION_VIEW, Uri.parse("geo:$TEST_LAT,$TEST_LNG?q=$TEST_LAT,$TEST_LNG")), "Open with"),

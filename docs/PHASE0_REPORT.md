@@ -119,6 +119,60 @@ GitHub Actions builds the APK on every push that touches the probe
    and Arabic, try **Speak** in English and Arabic.
 8. Close the app fully, reopen it. Turn the car off and on, then reopen it.
 
-## Results
+## Results (probe 0.1.4, on the car, parked)
 
-To be filled in from the car.
+### Device
+
+| Item | Value |
+|---|---|
+| Head unit | BYD DiLink 5.0, Qualcomm SM7325 (Snapdragon 778G class), 8 cores, 11 GB RAM |
+| Android | 12 (API 32), security patch 2025-03-05, build `eng.build.20260320.231810` |
+| ABIs | arm64-v8a (+ 32-bit) |
+| Screen | 1920 x 1080, 240 dpi (1.5x) = **1280 x 720 dp**, 60 Hz, landscape only |
+| BYD bars | Top 84 px (56 dp) status bar, bottom 90 px (60 dp) bar with climate controls and a split-screen button |
+| GPU | Adreno, OpenGL ES 3.2, Vulkan |
+| Network | Wi-Fi, validated internet, ~450 ms to google.com and openfreemap.org |
+| Other displays | Two 1280x480 BYD projection displays (cluster-related). Not used |
+| Home apps | `com.android.launcher3` (BYD home), `com.byd.launchermap` (BYD map home) |
+
+### Feature results
+
+| Test | Result |
+|---|---|
+| Install from Chrome | ✅ Works |
+| Full screen | ✅ Both BYD bars hide; exiting restores them |
+| Animation | ✅ 60 fps, slowest frame 16 ms |
+| App list and launching | ✅ 44 apps listed, apps open |
+| Back to BYD home | ✅ Works |
+| Free map inside the app (MapLibre) | ✅ Renders Amman with Arabic and English names, pan and zoom work |
+| Google map inside the app (Maps SDK) | ❌ `SERVICE_INVALID`: a `com.google.android.gms` package exists but is not genuine Play Services; ReVanced GmsCore 7.3.0 is installed |
+| Google Maps handoff / split screen | ❌ The **Google Maps app is not installed**, so both buttons had nothing to open |
+| Waze handoff | ✅ Opens |
+| Any map app (`geo:`) | ✅ Shows the app chooser |
+| Media keys (play/pause/next/previous) | ✅ Control the playing app with no permission |
+| Now playing (title, artwork) | ❌ Notification access not granted (whether a settings screen opened is still to confirm) |
+| Microphone (MIC, VOICE_RECOGNITION, VOICE_COMMUNICATION) | ✅ All three record real audio (peak -28.5 dBFS) |
+| Android speech recognition | ❌ No recognition service on the car |
+| Text to speech | ❌ Only engine is `com.byd.autovoice`; English not supported, speak fails |
+| Vendor package list | ⚠️ `getInstalledPackages` returned 0 on this firmware; the launcher query works |
+| Reboot behaviour | Not tested yet |
+
+### Conclusions
+
+- The car is fast and modern (Android 12, 778G, 11 GB RAM, 60 fps). Compose is smooth. **Phase 1 can start.**
+- Cockpit targets: minSdk 31 is safe for this car, but keep **minSdk 26** so other BYD models can install it. arm64 only.
+- Layout target: 1280 x 720 dp full screen, 1280 x 604 dp with BYD bars. The bottom BYD bar holds climate
+  controls, so the cockpit should let the driver show it again easily.
+- **Maps:** the map panel inside the cockpit uses MapLibre (free, no Google). An embedded Google map is not
+  possible on this car without genuine Play Services. Turn-by-turn uses Waze (installed, works without Google),
+  either as handoff or in split screen. Google Maps the app is not installed and needs Play Services to run well.
+- **Media:** controls work today through media keys. Track title and artwork need notification access.
+- **Voice:** the microphone works, but the car has no usable speech recognition or English/Arabic TTS. The
+  assistant must record audio itself and use cloud speech-to-text and text-to-speech through our backend
+  (or an offline engine bundled in the app). This does not depend on BYD or Google services.
+
+### Still to test
+
+1. **Media → Allow access**: does a settings screen open, or a "not supported" message?
+2. **Maps → Waze: split screen** (added in 0.1.5), and the car's own split-screen button with the probe open.
+3. Reboot: turn the car off and on, then open the probe again.
