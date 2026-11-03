@@ -26,6 +26,8 @@ import com.google.android.filament.LightManager
 import com.google.android.filament.Renderer
 import com.google.android.filament.Scene
 import com.google.android.filament.SwapChain
+import com.google.android.filament.Texture
+import com.google.android.filament.TextureSampler
 import com.google.android.filament.View
 import com.google.android.filament.Viewport
 import com.google.android.filament.android.UiHelper
@@ -48,11 +50,12 @@ import kotlin.math.min
  * [speedKmh] and [driving] are read every frame.
  */
 @Composable
-internal fun LiveCar(modifier: Modifier, speedKmh: Int, driving: Boolean) {
+internal fun LiveCar(modifier: Modifier, speedKmh: Int, driving: Boolean, showFront: Boolean) {
     val context = LocalContext.current
     val speed = rememberUpdatedState(speedKmh)
     val isDriving = rememberUpdatedState(driving)
-    val renderer = remember { CarRenderer(context) { speed.value to isDriving.value } }
+    val front = rememberUpdatedState(showFront)
+    val renderer = remember { CarRenderer(context) { Telemetry(speed.value, isDriving.value, front.value) } }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
     LaunchedEffect(renderer) {
@@ -92,7 +95,9 @@ object CarModel {
  * Parked, the car turns slowly. Driving, it swings round to a chase view and its wheels spin with
  * the GPS speed.
  */
-private class CarRenderer(context: Context, private val telemetry: () -> Pair<Int, Boolean>) {
+internal class Telemetry(val speedKmh: Int, val driving: Boolean, val showFront: Boolean)
+
+private class CarRenderer(context: Context, private val telemetry: () -> Telemetry) {
     val textureView = TextureView(context)
 
     private val engine: Engine
@@ -103,6 +108,8 @@ private class CarRenderer(context: Context, private val telemetry: () -> Pair<In
     private val cameraEntity: Int
     private val sun: Int
     private val indirectLight: IndirectLight
+    private val reflections: Texture
+    private val plainTire: Texture
     private val uiHelper = UiHelper(UiHelper.ContextErrorPolicy.DONT_CHECK)
     private val materials: UbershaderProvider
     private val assetLoader: AssetLoader
@@ -112,7 +119,7 @@ private class CarRenderer(context: Context, private val telemetry: () -> Pair<In
 
     private val baseRoot = FloatArray(16)
     private val wheels = mutableListOf<Wheel>()
-    private var yawDeg = 35f
+    private var yawDeg = FRONT_YAW
     private var wheelAngle = 0f
     private var lastFrame = 0L
     private var running = false
@@ -154,12 +161,17 @@ private class CarRenderer(context: Context, private val telemetry: () -> Pair<In
             .castShadows(false)
             .build(engine, sun)
         scene.addEntity(sun)
+        // A soft studio environment. Shiny paint and metal need something to reflect;
+        // without it they render almost black.
+        reflections = Studio.cubemap(engine)
         indirectLight = IndirectLight.Builder()
-            .irradiance(1, floatArrayOf(0.55f, 0.62f, 0.72f))
-            .intensity(35_000f)
+            .reflections(reflections)
+            .irradiance(1, floatArrayOf(0.85f, 0.88f, 0.92f))
+            .intensity(28_000f)
             .build(engine)
         scene.indirectLight = indirectLight
 
+        plainTire = Studio.solid(engine, 0.05f, 0.05f, 0.055f)
         materials = UbershaderProvider(engine)
         assetLoader = AssetLoader(engine, materials, EntityManager.get())
         resourceLoader = ResourceLoader(engine)
@@ -181,11 +193,11 @@ private class CarRenderer(context: Context, private val telemetry: () -> Pair<In
 
             override fun onResized(width: Int, height: Int) {
                 view.viewport = Viewport(0, 0, width, height)
-                camera.setProjection(28.0, width.toDouble() / height.coerceAtLeast(1), 0.05, 50.0, Camera.Fov.VERTICAL)
+                frame(width.toDouble() / height.coerceAtLeast(1))
             }
         }
         uiHelper.attachTo(textureView)
-        camera.lookAt(0.0, 0.62, 3.6, 0.0, 0.02, 0.0, 0.0, 1.0, 0.0)
+        frame(1.6)
     }
 
     fun load(bytes: ByteArray) {
@@ -199,6 +211,7 @@ private class CarRenderer(context: Context, private val telemetry: () -> Pair<In
         scene.addEntities(loaded.entities)
         fitToUnitSize(loaded)
         hideLogos(loaded)
+        coverTireLettering(loaded)
         pickPaint(loaded)
         findWheels(loaded)
     }
@@ -226,6 +239,8 @@ private class CarRenderer(context: Context, private val telemetry: () -> Pair<In
         materials.destroyMaterials()
         materials.destroy()
         engine.destroyIndirectLight(indirectLight)
+        engine.destroyTexture(reflections)
+        engine.destroyTexture(plainTire)
         engine.destroyEntity(sun)
         engine.destroyRenderer(renderer)
         engine.destroyView(view)
@@ -239,8 +254,8 @@ private class CarRenderer(context: Context, private val telemetry: () -> Pair<In
     private fun render(frameTimeNanos: Long) {
         val dt = if (lastFrame == 0L) 0f else ((frameTimeNanos - lastFrame) / 1e9f).coerceIn(0f, 0.1f)
         lastFrame = frameTimeNanos
-        val (speedKmh, driving) = telemetry()
-        animate(dt, speedKmh, driving)
+        val t = telemetry()
+        animate(dt, t.speedKmh, t.driving, t.showFront)
         val chain = swapChain ?: return
         if (!uiHelper.isReadyToRender) return
         if (renderer.beginFrame(chain, frameTimeNanos)) {
@@ -249,18 +264,17 @@ private class CarRenderer(context: Context, private val telemetry: () -> Pair<In
         }
     }
 
-    private fun animate(dt: Float, speedKmh: Int, driving: Boolean) {
+    private fun animate(dt: Float, speedKmh: Int, driving: Boolean, showFront: Boolean) {
         val loaded = asset ?: return
-        if (driving) {
-            // Ease round to the chase view: rear of the car towards the driver.
-            val target = 180f
-            var diff = ((target - yawDeg) % 360f + 540f) % 360f - 180f
-            if (abs(diff) < 0.05f) diff = 0f
-            yawDeg += diff * min(1f, dt * 1.8f)
-        } else {
-            // Parked: a slow turn, like a showroom turntable.
-            yawDeg = (yawDeg + dt * 9f) % 360f
+        // Parked: still, three-quarter view of the front or the back. Driving: chase view from behind.
+        val target = when {
+            driving -> 180f
+            showFront -> FRONT_YAW
+            else -> BACK_YAW
         }
+        var diff = ((target - yawDeg) % 360f + 540f) % 360f - 180f
+        if (abs(diff) < 0.05f) diff = 0f
+        yawDeg += diff * min(1f, dt * 2.2f)
         val root = FloatArray(16)
         Matrix.setRotateM(root, 0, yawDeg, 0f, 1f, 0f)
         val world = FloatArray(16)
@@ -341,7 +355,37 @@ private class CarRenderer(context: Context, private val telemetry: () -> Pair<In
         }
     }
 
+    /**
+     * Places the camera so the whole car fits the card, whatever its shape. The car is about two
+     * units long after [fitToUnitSize]; at a three-quarter angle it spans about 2.2 units.
+     */
+    private fun frame(aspect: Double) {
+        val vFov = 30.0
+        camera.setProjection(vFov, aspect, 0.05, 50.0, Camera.Fov.VERTICAL)
+        val tanV = kotlin.math.tan(Math.toRadians(vFov / 2))
+        val tanH = tanV * aspect
+        val distance = maxOf(1.3 / tanH, 0.75 / tanV) + 1.0
+        camera.lookAt(0.0, distance * 0.22, distance, 0.0, 0.05, 0.0, 0.0, 1.0, 0.0)
+    }
+
+    /** The bundled tyres carry Khronos lettering on the sidewall; paint the sidewall plain. */
+    private fun coverTireLettering(loaded: FilamentAsset) {
+        val rm = engine.renderableManager
+        val sampler = TextureSampler()
+        for (entity in loaded.renderableEntities) {
+            val instance = rm.getInstance(entity)
+            for (prim in 0 until rm.getPrimitiveCount(instance)) {
+                val material = rm.getMaterialInstanceAt(instance, prim)
+                if (material.name?.contains("Tireside", ignoreCase = true) == true) {
+                    runCatching { material.setParameter("baseColorMap", plainTire, sampler) }
+                }
+            }
+        }
+    }
+
     private companion object {
+        const val FRONT_YAW = 35f
+        const val BACK_YAW = 215f
         const val WHEEL_RADIUS_M = 0.34f
         val WHEEL_NODES = listOf("WheelFrontL", "WheelFrontR", "WheelRearL", "WheelRearR")
     }

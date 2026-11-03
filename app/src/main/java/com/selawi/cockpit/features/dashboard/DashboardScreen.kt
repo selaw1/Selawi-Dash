@@ -28,6 +28,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Refresh
+import com.selawi.cockpit.core.design.RoundIconButton
+import com.selawi.cockpit.features.navigation.CarMap
+import com.selawi.cockpit.features.navigation.MapController
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -145,10 +153,15 @@ private fun TimeWeatherCard(state: DashboardState, modifier: Modifier) {
     }
 }
 
-/** The 3D car at full height, with the map and phone navigation one tap away. */
+/**
+ * The big left card: the 3D car, or the live map. Map swaps the car for the map in place;
+ * Front/Back turns the parked car round.
+ */
 @Composable
 private fun VehicleCard(driving: DrivingState, actions: DashboardActions, modifier: Modifier) {
     val shape = RoundedCornerShape(Space.cardRadius)
+    var showMap by rememberSaveable { mutableStateOf(false) }
+    var showFront by rememberSaveable { mutableStateOf(true) }
     Box(
         modifier
             .clip(shape)
@@ -157,7 +170,30 @@ private fun VehicleCard(driving: DrivingState, actions: DashboardActions, modifi
             )
             .border(1.dp, CockpitColors.Stroke, shape),
     ) {
-        Car3D(driving, Modifier.fillMaxSize())
+        Crossfade(targetState = showMap, animationSpec = tween(350), label = "car-or-map") { map ->
+            if (map) {
+                val controller = remember { MapController() }
+                Box(Modifier.fillMaxSize()) {
+                    CarMap(Modifier.fillMaxSize(), interactive = true, controller = controller)
+                    RoundIconButton(
+                        CockpitIcons.MyLocation,
+                        "Centre on the car",
+                        modifier = Modifier.align(Alignment.TopEnd).padding(Space.l),
+                    ) { controller.recenter?.invoke() }
+                }
+            } else {
+                Box(Modifier.fillMaxSize()) {
+                    Car3D(driving, Modifier.fillMaxSize(), showFront = showFront)
+                    if (!driving.driving) {
+                        PillButton(
+                            if (showFront) "Back" else "Front",
+                            modifier = Modifier.align(Alignment.TopEnd).padding(Space.l),
+                            icon = Icons.Filled.Refresh,
+                        ) { showFront = !showFront }
+                    }
+                }
+            }
+        }
         Row(
             Modifier
                 .align(Alignment.BottomCenter)
@@ -166,7 +202,10 @@ private fun VehicleCard(driving: DrivingState, actions: DashboardActions, modifi
             horizontalArrangement = Arrangement.spacedBy(Space.s, Alignment.End),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            PillButton("Map", icon = CockpitIcons.Map, onClick = actions.onOpenMap)
+            PillButton(
+                if (showMap) "Car" else "Map",
+                icon = if (showMap) CockpitIcons.Navigation else CockpitIcons.Map,
+            ) { showMap = !showMap }
             PillButton("Drive mode", icon = CockpitIcons.SplitScreen, primary = true, onClick = actions.onDriveMode)
         }
     }

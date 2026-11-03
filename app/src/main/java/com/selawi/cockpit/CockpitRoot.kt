@@ -111,6 +111,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         val scope = rememberCoroutineScope()
         val playing by app.media.nowPlaying.collectAsStateWithLifecycle()
         val access by app.media.sessionAccess.collectAsStateWithLifecycle()
+        val readableApps by app.media.browserApps.collectAsStateWithLifecycle()
         val pinned by app.apps.pinned.collectAsStateWithLifecycle()
         val allApps by app.apps.apps.collectAsStateWithLifecycle()
         val driving by app.driving.state.collectAsStateWithLifecycle()
@@ -174,6 +175,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                         access = access,
                         controls = controls,
                         onAllowAccess = { NotificationAccess.open(activity) },
+                        readableApps = readableApps,
                         onOpenApp = launch,
                     )
                     Destination.Apps -> {

@@ -148,6 +148,7 @@ fun MediaScreen(
     access: Boolean,
     controls: MediaControls,
     onAllowAccess: () -> Unit,
+    readableApps: List<String> = emptyList(),
     onOpenApp: (Intent) -> Unit = {},
 ) {
     val context = LocalContext.current
@@ -163,10 +164,21 @@ fun MediaScreen(
                 Spacer(Modifier.height(Space.s))
                 val status = when {
                     access -> "Reading every music app directly."
+                    playing.source == MediaSource.Browser -> "Reading the player directly."
                     playing.source == MediaSource.Broadcast -> "Reading the track from the app's broadcast."
                     else -> "Controls work. Song name and artwork need one of the options below."
                 }
                 Text(status, style = MaterialTheme.typography.bodyLarge, color = CockpitColors.TextPrimary)
+                if (!access) {
+                    Spacer(Modifier.height(Space.s))
+                    val names = readableApps.map { appLabel(context, it) ?: it }
+                    Text(
+                        if (names.isEmpty()) "No music app accepted a direct connection yet."
+                        else "Shown without permission: " + names.joinToString(),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = CockpitColors.TextSecondary,
+                    )
+                }
                 if (!access) {
                     Spacer(Modifier.height(Space.m))
                     PillButton("Allow access to music apps", onClick = onAllowAccess)

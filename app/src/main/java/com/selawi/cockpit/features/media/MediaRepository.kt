@@ -9,7 +9,9 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.AudioManager
 import android.media.MediaMetadata
+import android.media.browse.MediaBrowser
 import android.media.session.MediaController
+import android.service.media.MediaBrowserService
 import android.media.session.MediaSessionManager
 import android.media.session.PlaybackState
 import android.os.SystemClock
@@ -31,7 +33,7 @@ import java.net.URL
 import java.net.URLEncoder
 
 /** Where the track information came from. */
-enum class MediaSource { None, Session, Broadcast }
+enum class MediaSource { None, Session, Browser, Broadcast }
 
 data class NowPlaying(
     val title: String = "",
@@ -59,14 +61,22 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
     private val _sessionAccess = MutableStateFlow(false)
     val sessionAccess: StateFlow<Boolean> = _sessionAccess
 
+    private val _browserApps = MutableStateFlow<List<String>>(emptyList())
+    /** Apps that let the cockpit read their player directly (no permission needed). */
+    val browserApps: StateFlow<List<String>> = _browserApps
+
     private var controller: MediaController? = null
+    private val browsers = mutableMapOf<String, MediaBrowser>()
+    private val browserControllers = mutableMapOf<String, MediaController>()
     private var broadcastTrack = NowPlaying()
     private var lastArtKey: String? = null
     private var lastArt: ImageBitmap? = null
+    private var lastPlayingPackage: String? = null
     private val spotifyArt = mutableMapOf<String, ImageBitmap?>()
 
     init {
         registerBroadcasts()
+        connectBrowsers()
         scope.launch {
             while (true) {
                 pollSessions()
@@ -83,7 +93,7 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
             mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
             // Broadcasts may lag; flip the button at once so the driver sees the tap land.
             broadcastTrack = broadcastTrack.copy(isPlaying = !broadcastTrack.isPlaying)
-            if (_nowPlaying.value.source != MediaSource.Session) _nowPlaying.value = broadcastTrack
+            if (controller == null) _nowPlaying.value = broadcastTrack
         }
     }
 
@@ -101,20 +111,25 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
     private fun pollSessions() {
         val allowed = NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
         _sessionAccess.value = allowed
-        if (!allowed) {
-            controller = null
-            return
+        val controllers = if (allowed) {
+            runCatching {
+                val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
+                msm.getActiveSessions(ComponentName(context, MediaListenerService::class.java))
+            }.getOrDefault(emptyList())
+        } else {
+            browserControllers.values.toList()
         }
-        val controllers = runCatching {
-            val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
-            msm.getActiveSessions(ComponentName(context, MediaListenerService::class.java))
-        }.getOrDefault(emptyList())
-        // Prefer the player that is actually playing.
-        val active = controllers.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
-            ?: controllers.firstOrNull()
+        // Prefer the player that is actually playing, then the last one that was. An idle app
+        // (the radio, say) must not take over the buttons just because it is connected.
+        val playingNow = controllers.firstOrNull { it.playbackState?.state == PlaybackState.STATE_PLAYING }
+        if (playingNow != null) lastPlayingPackage = playingNow.packageName
+        val active = playingNow
+            ?: controllers.firstOrNull { it.packageName == lastPlayingPackage }
+            ?: if (allowed) controllers.firstOrNull() else null
+        // Without a playing player, keep the last one so its buttons still work.
         controller = active
-        if (active == null) {
-            if (_nowPlaying.value.source == MediaSource.Session) _nowPlaying.value = broadcastTrack
+        if (active == null || (active.playbackState?.state != PlaybackState.STATE_PLAYING && active.metadata == null)) {
+            if (_nowPlaying.value.source != MediaSource.Broadcast) _nowPlaying.value = broadcastTrack
             return
         }
         val meta = active.metadata
@@ -135,8 +150,48 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
             packageName = active.packageName,
             isPlaying = active.playbackState?.state == PlaybackState.STATE_PLAYING,
             art = lastArt,
-            source = MediaSource.Session,
+            source = if (allowed) MediaSource.Session else MediaSource.Browser,
         )
+    }
+
+    /**
+     * Connects to every app that offers a media browser service: the documented way car screens
+     * (Android Auto, Android Automotive) read players. It needs no permission, but each app decides
+     * whether to accept; refusals are simply skipped. This also covers the car's Bluetooth music,
+     * which carries the track playing on a connected phone.
+     */
+    fun connectBrowsers() {
+        val pm = context.packageManager
+        val services = runCatching {
+            pm.queryIntentServices(Intent(MediaBrowserService.SERVICE_INTERFACE), 0)
+        }.getOrDefault(emptyList())
+        for (info in services) {
+            val service = info.serviceInfo ?: continue
+            val pkg = service.packageName
+            if (pkg == context.packageName || pkg in browsers || !service.exported) continue
+            val component = ComponentName(pkg, service.name)
+            lateinit var browser: MediaBrowser
+            browser = MediaBrowser(context, component, object : MediaBrowser.ConnectionCallback() {
+                override fun onConnected() {
+                    runCatching {
+                        browserControllers[pkg] = MediaController(context, browser.sessionToken)
+                        _browserApps.value = browserControllers.keys.toList()
+                    }
+                }
+
+                override fun onConnectionSuspended() {
+                    browserControllers.remove(pkg)
+                    browsers.remove(pkg)
+                    _browserApps.value = browserControllers.keys.toList()
+                }
+
+                override fun onConnectionFailed() {
+                    browserControllers.remove(pkg)
+                }
+            }, null)
+            browsers[pkg] = browser
+            runCatching { browser.connect() }
+        }
     }
 
     private fun registerBroadcasts() {
@@ -185,7 +240,7 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
             }
         }
         broadcastTrack = next
-        if (_nowPlaying.value.source != MediaSource.Session) _nowPlaying.value = next
+        if (_nowPlaying.value.source == MediaSource.None || _nowPlaying.value.source == MediaSource.Broadcast || controller == null) _nowPlaying.value = next
     }
 
     /** Spotify's broadcast has no artwork; its public oEmbed endpoint gives the cover for a track id. */

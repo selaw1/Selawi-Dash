@@ -35,16 +35,16 @@ import com.selawi.cockpit.core.design.Space
  * driver's eye.
  */
 @Composable
-fun Car3D(state: DrivingState, modifier: Modifier = Modifier) {
+fun Car3D(state: DrivingState, modifier: Modifier = Modifier, showFront: Boolean = true) {
     val drive by animateFloatAsState(if (state.driving) 1f else 0f, tween(1200), label = "drive")
     Box(modifier) {
         RoadBackdrop(drive, state.speedKmh, Modifier.fillMaxSize())
         if (LocalInspectionMode.current) {
             CarStandIn(Modifier.fillMaxSize())
         } else {
-            LiveCar(Modifier.fillMaxSize(), state.speedKmh, state.driving)
+            LiveCar(Modifier.fillMaxSize(), state.speedKmh, state.driving, showFront)
         }
-        Column(Modifier.align(Alignment.TopStart).padding(Space.m)) {
+        Column(Modifier.align(Alignment.TopStart).padding(Space.l)) {
             SectionLabel(if (state.driving) "Driving" else "Parked")
             if (state.driving) {
                 Text(
