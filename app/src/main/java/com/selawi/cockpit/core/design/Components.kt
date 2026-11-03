@@ -66,7 +66,7 @@ fun SectionLabel(text: String, modifier: Modifier = Modifier) {
     )
 }
 
-/** Round icon button; the primary one (play/pause) is filled with the accent colour. */
+/** Round icon button; the primary one (play/pause) is near-black by day and near-white at night. */
 @Composable
 fun RoundIconButton(
     icon: ImageVector,
@@ -80,14 +80,14 @@ fun RoundIconButton(
         modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (primary) CockpitColors.Accent else CockpitColors.SurfaceHigh)
+            .background(if (primary) CockpitColors.Inverse else CockpitColors.SurfaceHigh)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             icon,
             contentDescription = contentDescription,
-            tint = if (primary) CockpitColors.OnAccent else CockpitColors.TextPrimary,
+            tint = if (primary) CockpitColors.OnInverse else CockpitColors.TextPrimary,
             modifier = Modifier.size(size * 0.45f),
         )
     }
