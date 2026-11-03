@@ -12,6 +12,7 @@ Seal 05 DM-i until the probe results are filled in at the end.
 | Screen orientation | Landscape only, does not rotate |
 | Vehicle software | 23.1.22 |
 | Android version / API level | Unknown, the probe reads it |
+| Google services | Installed through ReVanced, most likely **ReVanced GmsCore** (a microG build), not real Google Play Services. The Google Maps SDK needs real Play Services, so an embedded Google map probably will not work; the free map does not need Google |
 | Default launcher | **Not needed.** The cockpit is a normal app the driver opens; it then fills the screen |
 
 ## Research summary

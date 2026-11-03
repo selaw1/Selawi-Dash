@@ -157,6 +157,10 @@ object DeviceReport {
         row("Play Store", versionOf(context, "com.android.vending"))
         row("Google Maps app", versionOf(context, "com.google.android.apps.maps"))
         row("Google app", versionOf(context, "com.google.android.googlequicksearchbox"))
+        // Replacements for Google services, e.g. ReVanced GmsCore (a microG build).
+        row("ReVanced GmsCore", versionOf(context, "app.revanced.android.gms"))
+        row("Vanced microG", versionOf(context, "com.mgoogle.android.gms"))
+        row("microG Services Framework", versionOf(context, "com.google.android.gsf"))
         row("Maps SDK key in this build", if (BuildConfig.HAS_MAPS_KEY) "yes" else "no")
     }
 
