@@ -164,7 +164,8 @@ private fun DrawScope.drawScene(drive: Float, travel: Float, steer: Float) {
             drawPath(
                 surface,
                 Brush.verticalGradient(
-                    listOf(Color.Transparent, CockpitColors.SurfaceHigh.copy(alpha = 0.9f * drive)),
+                    // Asphalt: dark at night, soft grey by day, fading into the distance.
+                    listOf(Color.Transparent, (if (CockpitColors.isDark) Color(0xFF1C1F25) else Color(0xFFD6DAE0)).copy(alpha = drive)),
                     startY = top,
                     endY = size.height,
                 ),
