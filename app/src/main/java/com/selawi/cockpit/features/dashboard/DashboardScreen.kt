@@ -1,7 +1,15 @@
 package com.selawi.cockpit.features.dashboard
 
 import android.text.format.DateFormat
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import com.selawi.cockpit.features.calls.CallBanner
+import com.selawi.cockpit.features.calls.CallInfo
+import com.selawi.cockpit.features.calls.CallState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -50,18 +58,31 @@ class DashboardState(
     val weather: Weather?,
     val playing: NowPlaying,
     val driving: DrivingState = DrivingState(),
+    val call: CallInfo = CallInfo(),
     /** Fixed time for screenshots; null shows the live clock. */
     val fixedTime: LocalDateTime? = null,
 )
 
 @Composable
-fun DashboardScreen(compact: Boolean, state: DashboardState, controls: MediaControls) {
-    if (compact) CompactDashboard(state, controls) else WideDashboard(state, controls)
+fun DashboardScreen(compact: Boolean, state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit = {}) {
+    if (compact) CompactDashboard(state, controls, onOpenPhone) else WideDashboard(state, controls, onOpenPhone)
+}
+
+/** Slides in above the music while a call rings or runs. */
+@Composable
+private fun CallSlot(call: CallInfo, onOpenPhone: () -> Unit) {
+    AnimatedVisibility(
+        visible = call.state != CallState.Idle,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut(),
+    ) {
+        CallBanner(call, onOpenPhone, Modifier.fillMaxWidth())
+    }
 }
 
 /** The car panel on the left; time, music and the forecast on the right. */
 @Composable
-private fun WideDashboard(state: DashboardState, controls: MediaControls) {
+private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit) {
     val is24 = DateFormat.is24HourFormat(LocalContext.current)
     // The cover glow lies behind the whole screen; the car panel fades into it, so there is no seam.
     Row(Modifier.fillMaxSize().coverWash(state.playing)) {
@@ -74,6 +95,7 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls) {
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
             Header(state, Modifier.fillMaxWidth())
+            CallSlot(state.call, onOpenPhone)
             MediaCard(state.playing, controls, Modifier.fillMaxWidth().weight(1f))
             ForecastStrip(state.weather, Modifier.fillMaxWidth(), is24)
         }
@@ -82,12 +104,13 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls) {
 
 /** A narrow window (for example in the car's split screen): one scrolling column. */
 @Composable
-private fun CompactDashboard(state: DashboardState, controls: MediaControls) {
+private fun CompactDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit) {
     val is24 = DateFormat.is24HourFormat(LocalContext.current)
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         VehiclePanel(state.driving, Modifier.fillMaxWidth(), carHeight = 240.dp)
         Column(Modifier.padding(Space.l), verticalArrangement = Arrangement.spacedBy(Space.m)) {
             Header(state, Modifier.fillMaxWidth())
+            CallSlot(state.call, onOpenPhone)
             MediaCard(state.playing, controls, Modifier.fillMaxWidth(), compact = true)
             ForecastStrip(state.weather, Modifier.fillMaxWidth(), is24)
         }

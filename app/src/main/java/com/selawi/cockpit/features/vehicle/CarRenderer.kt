@@ -109,6 +109,8 @@ class CarControl {
     var drive = 0f
     /** -1 (left) … 1 (right): how sharply the road is curving, from GPS heading. */
     var steer = 0f
+    /** 0 … 1: road speed eased by the UI, for the camera's sense of speed. */
+    var speedFx = 0f
 
     /** The driver dragged the car round by this many degrees. */
     fun drag(degrees: Float) {
@@ -430,7 +432,7 @@ private class CarRenderer(
 
     /** Same camera the road behind the car is drawn with. */
     private fun placeCamera() {
-        val v = CarScene.view(aspect, control.drive)
+        val v = CarScene.view(aspect, control.drive, control.speedFx)
         camera.lookAt(v.eye[0], v.eye[1], v.eye[2], v.target[0], v.target[1], v.target[2], 0.0, 1.0, 0.0)
     }
 

@@ -21,6 +21,8 @@ import com.selawi.cockpit.features.apps.AppsScreen
 import com.selawi.cockpit.features.assistant.AssistantScreen
 import com.selawi.cockpit.features.dashboard.DashboardScreen
 import com.selawi.cockpit.features.dashboard.DashboardState
+import com.selawi.cockpit.features.calls.CallInfo
+import com.selawi.cockpit.features.calls.CallState
 import com.selawi.cockpit.features.media.MediaControls
 import com.selawi.cockpit.features.media.MediaSource
 import com.selawi.cockpit.features.media.NowPlaying
@@ -56,6 +58,15 @@ class ScreenshotTest {
 
     @Test
     fun dashboardOrangeAccent() = shot(Destination.Home, accent = androidx.compose.ui.graphics.Color(0xFFF97316)) { compact -> Dashboard(compact, moving) }
+
+    @Test
+    fun dashboardOnCall() = shot(Destination.Home) { compact ->
+        DashboardScreen(
+            compact = compact,
+            state = DashboardState(null, playing, parked, CallInfo(CallState.Active, 0), fixedTime = LocalDateTime.of(2026, 11, 3, 12, 51)),
+            controls = MediaControls.None,
+        )
+    }
 
     @Test
     fun dashboardDay() = shot(Destination.Home, dark = false) { compact -> Dashboard(compact, moving) }

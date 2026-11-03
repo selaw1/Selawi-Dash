@@ -113,6 +113,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         val pinned by app.apps.pinned.collectAsStateWithLifecycle()
         val allApps by app.apps.apps.collectAsStateWithLifecycle()
         val driving by app.driving.state.collectAsStateWithLifecycle()
+        val call by app.calls.call.collectAsStateWithLifecycle()
         val fullScreen by app.settings.fullScreen.collectAsStateWithLifecycle(initialValue = true)
         val keepOn by app.settings.keepScreenOn.collectAsStateWithLifecycle(initialValue = false)
         var crash by remember { mutableStateOf(CrashLog.read(activity)) }
@@ -152,8 +153,9 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                 when (target) {
                     Destination.Home -> DashboardScreen(
                         compact = compact,
-                        state = DashboardState(weather, playing, driving),
+                        state = DashboardState(weather, playing, driving, call),
                         controls = controls,
+                        onOpenPhone = app.calls::openPhone,
                     )
                     Destination.Apps -> Box(Modifier.padding(Space.l)) {
                         LaunchedEffect(Unit) { app.apps.refresh() }

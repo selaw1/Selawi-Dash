@@ -57,6 +57,7 @@ fun Car3D(state: DrivingState, modifier: Modifier = Modifier) {
     var travel by remember { mutableFloatStateOf(0f) }
     var drive by remember { mutableFloatStateOf(control.drive) }
     var steer by remember { mutableFloatStateOf(0f) }
+    var speedFx by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(control) {
         var last = 0L
         var lastHeading: Float? = null
@@ -79,14 +80,17 @@ fun Car3D(state: DrivingState, modifier: Modifier = Modifier) {
                 turnRate *= exp(-dt * 0.8f)
                 steer = (turnRate / 30f).coerceIn(-1f, 1f)
                 travel += s.speedKmh / 3.6f / CarScene.METRES_PER_UNIT * dt
+                // Eased over about a second, so speed changes feel like acceleration, not jumps.
+                speedFx += ((s.speedKmh / 120f).coerceIn(0f, 1f) - speedFx) * (1 - exp(-dt * 1.2f))
                 control.drive = drive
                 control.steer = steer
+                control.speedFx = speedFx
             }
         }
     }
 
     Box(modifier.clipToBounds()) {
-        Canvas(Modifier.fillMaxSize()) { drawScene(drive, travel, steer) }
+        Canvas(Modifier.fillMaxSize()) { drawScene(drive, travel, steer, speedFx) }
         if (LocalInspectionMode.current) {
             CarStandIn(Modifier.fillMaxSize())
         } else {
@@ -131,8 +135,8 @@ private const val DASH = 0.55
 private const val GAP = 1.45
 
 /** Floor, contact shadow and, while driving, the road. Same camera as the 3D car. */
-private fun DrawScope.drawScene(drive: Float, travel: Float, steer: Float) {
-    val view = CarScene.view(size.width.toDouble() / size.height, drive)
+private fun DrawScope.drawScene(drive: Float, travel: Float, steer: Float, speed: Float) {
+    val view = CarScene.view(size.width.toDouble() / size.height, drive, speed)
     fun p(x: Double, z: Double, y: Double = 0.0) = CarScene.project(view, x, y, z, size.width, size.height)
     val parked = 1f - drive
 
@@ -200,19 +204,33 @@ private fun DrawScope.drawScene(drive: Float, travel: Float, steer: Float) {
             }
             z -= period
         }
-        // Light streaks passing at the roadside, faster and fainter: a sense of speed.
-        val streakPeriod = 2.6
-        var sz = near + ((travel * 1.4f) % streakPeriod)
-        while (sz > far * 0.6) {
-            for (x in listOf(-ROAD_EDGE - 0.9, ROAD_EDGE + 0.9)) {
-                val a = p(roadX(x, sz), sz, 0.35)
-                val b = p(roadX(x, sz - 0.9), sz - 0.9, 0.35)
-                if (a != null && b != null) {
-                    val fade = ((sz - far * 0.6) / (near - far * 0.6)).toFloat().coerceIn(0f, 1f)
-                    drawLine(CockpitColors.TextSecondary.copy(alpha = 0.35f * drive * fade), a, b, strokeWidth = 1.5f + 2f * fade, cap = StrokeCap.Round)
-                }
+        // Light streaks passing at the roadside: almost none in slow traffic, longer, brighter and
+        // denser as the speed rises, with a second, outer row on the open road.
+        val intensity = CarScene.smooth(((speed - 0.12f) / 0.6f).coerceIn(0f, 1f))
+        if (intensity > 0.01f) {
+            val streakPeriod = 2.6 - 1.2 * intensity
+            val streakLength = 0.5 + 1.8 * intensity
+            val rows = buildList {
+                add(-ROAD_EDGE - 0.9 to 0.35); add(ROAD_EDGE + 0.9 to 0.35)
+                if (intensity > 0.45f) { add(-ROAD_EDGE - 2.1 to 0.8); add(ROAD_EDGE + 2.1 to 0.8) }
             }
-            sz -= streakPeriod
+            var sz = near + ((travel * 1.4f) % streakPeriod)
+            while (sz > far * 0.6) {
+                for ((x, y) in rows) {
+                    val a = p(roadX(x, sz), sz, y)
+                    val b = p(roadX(x, sz - streakLength), sz - streakLength, y)
+                    if (a != null && b != null) {
+                        val fade = ((sz - far * 0.6) / (near - far * 0.6)).toFloat().coerceIn(0f, 1f)
+                        drawLine(
+                            CockpitColors.TextSecondary.copy(alpha = (0.2f + 0.5f * intensity) * drive * fade),
+                            a, b,
+                            strokeWidth = 1.5f + 3f * fade * intensity,
+                            cap = StrokeCap.Round,
+                        )
+                    }
+                }
+                sz -= streakPeriod
+            }
         }
     }
 
