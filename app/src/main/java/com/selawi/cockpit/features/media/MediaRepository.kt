@@ -84,6 +84,19 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
     private var lastArtKey: String? = null
     private var lastArt: ImageBitmap? = null
     private var lastPlayingPackage: String? = null
+    private val artCache = mutableMapOf<String, ImageBitmap?>()
+
+    // Shown at once when the driver taps play/pause, and kept briefly while the phone catches up,
+    // so a slow Bluetooth round trip never makes the button flick back.
+    private var optimisticPlaying: Boolean? = null
+    private var optimisticUntil = 0L
+
+    // Live updates from the active player, so changes show at once instead of on the next poll.
+    private var watched: MediaController? = null
+    private val watcher = object : MediaController.Callback() {
+        override fun onPlaybackStateChanged(state: PlaybackState?) = pollSessions()
+        override fun onMetadataChanged(metadata: MediaMetadata?) = pollSessions()
+    }
     private val spotifyArt = mutableMapOf<String, ImageBitmap?>()
 
     init {
@@ -98,20 +111,37 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
     }
 
     fun playPause() {
+        val now = SystemClock.elapsedRealtime()
+        val current = _nowPlaying.value
+        val target = !current.isPlaying
+        // Answer the tap immediately; the player confirms over Bluetooth a moment later.
+        optimisticPlaying = target
+        optimisticUntil = now + 1500
+        val position = current.progress(now)?.let { (it * current.durationMs).toLong() } ?: current.positionMs
+        _nowPlaying.value = current.copy(isPlaying = target, positionMs = position, positionAt = now)
         val c = controller
         if (c != null) {
-            if (c.playbackState?.state == PlaybackState.STATE_PLAYING) c.transportControls.pause() else c.transportControls.play()
+            if (target) c.transportControls.play() else c.transportControls.pause()
         } else {
             mediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)
-            // Broadcasts may lag; flip the button at once so the driver sees the tap land.
-            broadcastTrack = broadcastTrack.copy(isPlaying = !broadcastTrack.isPlaying)
-            if (controller == null) _nowPlaying.value = broadcastTrack
+            broadcastTrack = broadcastTrack.copy(isPlaying = target)
         }
     }
 
-    fun next() = controller?.transportControls?.skipToNext() ?: mediaKey(KeyEvent.KEYCODE_MEDIA_NEXT)
+    fun next() {
+        restartProgress()
+        controller?.transportControls?.skipToNext() ?: mediaKey(KeyEvent.KEYCODE_MEDIA_NEXT)
+    }
 
-    fun previous() = controller?.transportControls?.skipToPrevious() ?: mediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+    fun previous() {
+        restartProgress()
+        controller?.transportControls?.skipToPrevious() ?: mediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS)
+    }
+
+    /** A skip shows at once: the bar jumps back to the start until the new song arrives. */
+    private fun restartProgress() {
+        _nowPlaying.value = _nowPlaying.value.copy(positionMs = 0, positionAt = SystemClock.elapsedRealtime())
+    }
 
     private fun mediaKey(code: Int) {
         val am = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -140,6 +170,11 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
             ?: if (allowed) controllers.firstOrNull() else null
         // Without a playing player, keep the last one so its buttons still work.
         controller = active
+        if (watched?.sessionToken != active?.sessionToken) {
+            runCatching { watched?.unregisterCallback(watcher) }
+            watched = active
+            runCatching { active?.registerCallback(watcher, android.os.Handler(android.os.Looper.getMainLooper())) }
+        }
         if (active == null || (active.playbackState?.state != PlaybackState.STATE_PLAYING && active.metadata == null)) {
             if (_nowPlaying.value.source != MediaSource.Broadcast) _nowPlaying.value = broadcastTrack
             return
@@ -154,13 +189,24 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
             val bitmap: Bitmap? = meta?.getBitmap(MediaMetadata.METADATA_KEY_ALBUM_ART)
                 ?: meta?.getBitmap(MediaMetadata.METADATA_KEY_ART)
                 ?: meta?.getBitmap(MediaMetadata.METADATA_KEY_DISPLAY_ICON)
-            lastArt = bitmap?.asImageBitmap()
+            lastArt = bitmap?.asImageBitmap() ?: artCache[artKey]
+            if (lastArt == null && artKey !in artCache && title.isNotBlank()) {
+                val uris = listOfNotNull(
+                    meta?.getString(MediaMetadata.METADATA_KEY_ALBUM_ART_URI),
+                    meta?.getString(MediaMetadata.METADATA_KEY_ART_URI),
+                    meta?.getString(MediaMetadata.METADATA_KEY_DISPLAY_ICON_URI),
+                )
+                loadArt(artKey, uris, title, artist)
+            }
         }
+        val actuallyPlaying = active.playbackState?.state == PlaybackState.STATE_PLAYING
+        val shownPlaying = optimisticPlaying?.takeIf { SystemClock.elapsedRealtime() < optimisticUntil } ?: actuallyPlaying
+        if (optimisticPlaying == actuallyPlaying || SystemClock.elapsedRealtime() >= optimisticUntil) optimisticPlaying = null
         _nowPlaying.value = NowPlaying(
             title = title,
             artist = artist,
             packageName = active.packageName,
-            isPlaying = active.playbackState?.state == PlaybackState.STATE_PLAYING,
+            isPlaying = shownPlaying,
             art = lastArt,
             source = if (allowed) MediaSource.Session else MediaSource.Browser,
             durationMs = meta?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0,
@@ -168,6 +214,43 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
             positionAt = active.playbackState?.lastPositionUpdateTime ?: 0,
         )
     }
+
+    /**
+     * Cover for a song that arrived without one. Bluetooth players usually hand the cover over as
+     * a link to the car's Bluetooth service rather than as an image, so that is tried first; if
+     * there is still nothing, the cover is looked up by title and artist in Apple's free iTunes
+     * search. Results are remembered per song.
+     */
+    private fun loadArt(key: String, uris: List<String>, title: String, artist: String) {
+        artCache[key] = null
+        scope.launch {
+            val art = withContext(Dispatchers.IO) {
+                uris.firstNotNullOfOrNull { uri ->
+                    runCatching {
+                        context.contentResolver.openInputStream(android.net.Uri.parse(uri))?.use {
+                            BitmapFactory.decodeStream(it)?.asImageBitmap()
+                        }
+                    }.getOrNull()
+                } ?: lookUpCover(title, artist)
+            }
+            artCache[key] = art
+            if (art != null && lastArtKey == key) {
+                lastArt = art
+                _nowPlaying.value = _nowPlaying.value.copy(art = art)
+            }
+        }
+    }
+
+    private fun lookUpCover(title: String, artist: String): ImageBitmap? = runCatching {
+        val term = URLEncoder.encode("$artist $title".trim(), "UTF-8")
+        val json = JSONObject(httpGet("https://itunes.apple.com/search?term=$term&media=music&entity=song&limit=1").decodeToString())
+        val results = json.getJSONArray("results")
+        if (results.length() == 0) return null
+        val small = results.getJSONObject(0).optString("artworkUrl100")
+        if (small.isEmpty()) return null
+        val bytes = httpGet(small.replace("100x100bb", "600x600bb"))
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+    }.getOrNull()
 
     /**
      * Connects to every app that offers a media browser service: the documented way car screens

@@ -102,7 +102,11 @@ private fun TripStat(value: String, label: String, modifier: Modifier) {
 private fun minutes(seconds: Long): String {
     val h = seconds / 3600
     val m = (seconds % 3600) / 60
-    return if (h > 0) "${h}h ${m}m" else "${m}m"
+    return when {
+        h > 0 -> "${h}h ${m}m"
+        m > 0 -> "${m}m"
+        else -> "${seconds}s"
+    }
 }
 
 /** N, NE, E… from a heading in degrees. */
