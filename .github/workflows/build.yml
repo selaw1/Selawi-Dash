@@ -56,10 +56,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Replace the file inside the existing release rather than deleting and recreating the
+          # release, so the download link never disappears while someone is downloading.
           publish() {
-            gh release delete "$1" --cleanup-tag --yes || true
-            gh release create "$1" "$2" --prerelease --target "$GITHUB_SHA" --title "$3" \
-              --notes "Built from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}. Install on the head unit through Chrome."
+            if gh release view "$1" >/dev/null 2>&1; then
+              gh release upload "$1" "$2" --clobber
+              gh release edit "$1" --notes "Built from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}. Install on the head unit through Chrome."
+            else
+              gh release create "$1" "$2" --prerelease --target "$GITHUB_SHA" --title "$3" \
+                --notes "Built from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}. Install on the head unit through Chrome."
+            fi
           }
           publish cockpit-latest selawi-dash.apk "Selawi Dash (latest test build)"
           (cd app/src/test/snapshots/images && zip -q ../../../../../cockpit-screenshots.zip *.png)
