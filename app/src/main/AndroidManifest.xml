@@ -18,8 +18,8 @@
     <application
         android:name=".CockpitApplication"
         android:allowBackup="false"
-        android:icon="@drawable/ic_cockpit"
-        android:roundIcon="@drawable/ic_cockpit"
+        android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:resizeableActivity="true"
         android:supportsRtl="true"
