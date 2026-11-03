@@ -163,9 +163,9 @@ private fun TimeWeatherCard(state: DashboardState, modifier: Modifier) {
 @Composable
 private fun VehicleCard(driving: DrivingState, guidance: NavGuidance?, modifier: Modifier) {
     val shape = RoundedCornerShape(Space.cardRadius)
-    var showMap by rememberSaveable { mutableStateOf(false) }
-    // When the phone starts navigating, show the map with the turn card; the driver can still flip back.
+    // When the phone is navigating, show the map with the turn card; the driver can still flip back.
     val navigating = guidance != null
+    var showMap by rememberSaveable { mutableStateOf(navigating) }
     LaunchedEffect(navigating) { if (navigating) showMap = true }
     var showFront by rememberSaveable { mutableStateOf(true) }
     Box(
