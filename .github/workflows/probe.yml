@@ -1,8 +1,9 @@
-name: Build Cockpit Probe APK
+name: Build APKs
 
 on:
   push:
     paths:
+      - "app/**"
       - "probe/**"
       - "gradle/**"
       - "*.gradle.kts"
@@ -14,7 +15,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: probe-${{ github.ref }}
+  group: build-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -30,29 +31,33 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build debug APK
+      - name: Build cockpit and probe
         env:
-          # Optional. Add a MAPS_API_KEY repository secret to enable the Google map test.
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: |
           chmod +x gradlew
-          ./gradlew :probe:assembleDebug --stacktrace
+          ./gradlew :app:assembleDebug :probe:assembleDebug --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk selawi-cockpit.apk
           cp probe/build/outputs/apk/debug/probe-debug.apk cockpit-probe.apk
 
       - uses: actions/upload-artifact@v4
         with:
-          name: cockpit-probe
-          path: cockpit-probe.apk
+          name: apks
+          path: |
+            selawi-cockpit.apk
+            cockpit-probe.apk
 
-      # Fixed download link for the car's browser:
-      # https://github.com/<owner>/<repo>/releases/download/probe-latest/cockpit-probe.apk
-      - name: Publish to the probe-latest release
+      # Fixed download links for the car's browser:
+      # .../releases/download/cockpit-latest/selawi-cockpit.apk
+      # .../releases/download/probe-latest/cockpit-probe.apk
+      - name: Publish releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete probe-latest --cleanup-tag --yes || true
-          gh release create probe-latest cockpit-probe.apk \
-            --prerelease \
-            --target "$GITHUB_SHA" \
-            --title "Cockpit Probe (latest test build)" \
-            --notes "Phase 0 device probe built from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}. Install on the head unit through Chrome."
+          publish() {
+            gh release delete "$1" --cleanup-tag --yes || true
+            gh release create "$1" "$2" --prerelease --target "$GITHUB_SHA" --title "$3" \
+              --notes "Built from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}. Install on the head unit through Chrome."
+          }
+          publish cockpit-latest selawi-cockpit.apk "Selawi Cockpit (latest test build)"
+          publish probe-latest cockpit-probe.apk "Cockpit Probe (latest test build)"
