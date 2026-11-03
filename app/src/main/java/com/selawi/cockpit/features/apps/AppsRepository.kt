@@ -108,7 +108,6 @@ class AppsRepository(
             "app.revanced.android.youtube",
             "com.andrerinas.headunitrevived",
             "com.android.chrome",
-            "com.shihab.diplay",
         )
     }
 }

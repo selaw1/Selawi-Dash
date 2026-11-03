@@ -30,20 +30,13 @@ class SettingsState(
     val fullScreen: Boolean,
     val keepOn: Boolean,
     val theme: ThemeMode,
-    val openBeside: Boolean,
-    val musicAccess: Boolean,
     val crash: String?,
-    val phoneStatus: String = "",
-    val phoneCode: String = "",
-    val phoneAddress: String = "",
 )
 
 class SettingsActions(
     val onFullScreen: (Boolean) -> Unit = {},
     val onKeepOn: (Boolean) -> Unit = {},
     val onTheme: (ThemeMode) -> Unit = {},
-    val onOpenBeside: (Boolean) -> Unit = {},
-    val onAllowAccess: () -> Unit = {},
     val onCarHome: () -> Unit = {},
     val onChooseCar: () -> Unit = {},
     val onDefaultCar: () -> Unit = {},
@@ -81,56 +74,11 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
             ToggleRow("Keep screen on", "Stop the screen from dimming while the cockpit is open.", state.keepOn, actions.onKeepOn)
         }
         CockpitCard(Modifier.fillMaxWidth()) {
-            SectionLabel("Apps")
-            ToggleRow(
-                "Open apps beside the cockpit",
-                "Music apps, shortcuts and Drive mode open in split screen next to the cockpit when the car allows it.",
-                state.openBeside,
-                actions.onOpenBeside,
-            )
-        }
-        CockpitCard(Modifier.fillMaxWidth()) {
-            SectionLabel("Phone")
-            Spacer(Modifier.height(Space.s))
-            Text(state.phoneStatus, style = MaterialTheme.typography.titleMedium, color = CockpitColors.TextPrimary)
-            Spacer(Modifier.height(Space.s))
-            Text(
-                "Install Cockpit Link on your phone, join the same Wi-Fi as the car (the car's hotspot or your " +
-                    "phone's), and enter this code once. Google Maps directions from the phone then show on the cockpit's map.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = CockpitColors.TextSecondary,
-            )
-            Spacer(Modifier.height(Space.s))
-            Text(
-                "Pairing code  ${state.phoneCode}",
-                style = MaterialTheme.typography.headlineMedium,
-                color = CockpitColors.Accent,
-            )
-            if (state.phoneAddress.isNotBlank()) {
-                Text(
-                    "Car address (if the phone does not find the car by itself): ${state.phoneAddress}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = CockpitColors.TextSecondary,
-                )
-            }
-        }
-        CockpitCard(Modifier.fillMaxWidth()) {
-            SectionLabel("Music")
-            Spacer(Modifier.height(Space.s))
-            Text(
-                if (state.musicAccess) "Access to music apps: allowed" else "Access to music apps: not allowed",
-                style = MaterialTheme.typography.titleMedium,
-                color = if (state.musicAccess) CockpitColors.Accent else CockpitColors.Warning,
-            )
-            Spacer(Modifier.height(Space.s))
-            PillButton("Allow access", onClick = actions.onAllowAccess)
-        }
-        CockpitCard(Modifier.fillMaxWidth()) {
             SectionLabel("Car")
             Spacer(Modifier.height(Space.s))
             Text(
                 "3D car on the home screen: choose any .glb model you are allowed to use, from the car's storage or a " +
-                    "USB stick. It appears the next time you open Home.",
+                    "USB stick. It appears the next time you open Home. Drag the car to turn it; double-tap to reset.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CockpitColors.TextSecondary,
             )
@@ -165,13 +113,13 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
             Text(
                 "Default 3D car: \"Car Concept\" from the Khronos glTF Sample Assets, © 2024 Darmstadt Graphics Group GmbH, " +
                     "model and textures by Eric Chadwick, licensed CC BY 4.0. Logos removed. " +
-                    "Map data © OpenStreetMap contributors, tiles by OpenFreeMap. Weather by Open-Meteo.",
+                    "Weather by Open-Meteo. Fonts: Space Grotesk and Inter, SIL Open Font License 1.1.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CockpitColors.TextSecondary,
             )
         }
         Text(
-            "Selawi Cockpit ${BuildConfig.VERSION_NAME}",
+            "Selawi Dash ${BuildConfig.VERSION_NAME}",
             style = MaterialTheme.typography.bodyMedium,
             color = CockpitColors.TextTertiary,
         )

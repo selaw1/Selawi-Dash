@@ -1,4 +1,4 @@
-// Selawi Cockpit: the full-screen car dashboard.
+// Selawi Dash: the full-screen car dashboard.
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -17,7 +17,7 @@ android {
         minSdk = 26
         targetSdk = 35
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
-        versionName = "0.2.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
+        versionName = "0.3.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
         ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
@@ -63,7 +63,6 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.androidx.compose.material.icons.core)
     implementation(libs.androidx.datastore.preferences)
-    implementation(libs.maplibre)
     implementation(libs.filament.android)
     implementation(libs.gltfio.android)
 }

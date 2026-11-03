@@ -5,7 +5,6 @@ on:
     paths:
       - "app/**"
       - "probe/**"
-      - "companion/**"
       - "gradle/**"
       - "*.gradle.kts"
       - "gradle.properties"
@@ -37,10 +36,9 @@ jobs:
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug :probe:assembleDebug :companion:assembleDebug --stacktrace
-          cp app/build/outputs/apk/debug/app-debug.apk selawi-cockpit.apk
+          ./gradlew :app:assembleDebug :probe:assembleDebug --stacktrace
+          cp app/build/outputs/apk/debug/app-debug.apk selawi-dash.apk
           cp probe/build/outputs/apk/debug/probe-debug.apk cockpit-probe.apk
-          cp companion/build/outputs/apk/debug/companion-debug.apk cockpit-link.apk
 
       - name: Render screenshots
         run: ./gradlew :app:recordPaparazziDebug --stacktrace
@@ -54,12 +52,11 @@ jobs:
         with:
           name: apks
           path: |
-            selawi-cockpit.apk
+            selawi-dash.apk
             cockpit-probe.apk
-            cockpit-link.apk
 
       # Fixed download links for the car's browser:
-      # .../releases/download/cockpit-latest/selawi-cockpit.apk
+      # .../releases/download/cockpit-latest/selawi-dash.apk
       # .../releases/download/probe-latest/cockpit-probe.apk
       - name: Publish releases
         env:
@@ -70,8 +67,7 @@ jobs:
             gh release create "$1" "$2" --prerelease --target "$GITHUB_SHA" --title "$3" \
               --notes "Built from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}. Install on the head unit through Chrome."
           }
-          publish cockpit-latest selawi-cockpit.apk "Selawi Cockpit (latest test build)"
+          publish cockpit-latest selawi-dash.apk "Selawi Dash (latest test build)"
           publish probe-latest cockpit-probe.apk "Cockpit Probe (latest test build)"
-          publish link-latest cockpit-link.apk "Cockpit Link for the phone (latest test build)"
           (cd app/src/test/snapshots/images && zip -q ../../../../../cockpit-screenshots.zip *.png)
           publish screenshots-latest cockpit-screenshots.zip "Cockpit screenshots (latest build)"

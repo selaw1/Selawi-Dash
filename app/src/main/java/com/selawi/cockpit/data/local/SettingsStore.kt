@@ -17,27 +17,13 @@ class SettingsStore(private val context: Context) {
     private val keepScreenOnKey = booleanPreferencesKey("keep_screen_on")
     private val pinnedKey = stringPreferencesKey("pinned_apps")
     private val themeKey = stringPreferencesKey("theme")
-    private val splitKey = booleanPreferencesKey("open_beside")
-    private val pairingKey = stringPreferencesKey("pairing_code")
-
-    /** Six-digit code the phone app must send before the cockpit accepts it. Made once, kept. */
-    suspend fun pairingCode(): String {
-        context.dataStore.data.first()[pairingKey]?.let { return it }
-        val code = (100_000 + java.security.SecureRandom().nextInt(900_000)).toString()
-        context.dataStore.edit { it[pairingKey] = code }
-        return code
-    }
 
     /** Auto follows sunrise and sunset, like Google Maps. */
     val theme: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
         prefs[themeKey]?.let { runCatching { ThemeMode.valueOf(it) }.getOrNull() } ?: ThemeMode.Auto
     }
 
-    /** Open apps in split screen beside the cockpit when the car allows it. */
-    val openBeside: Flow<Boolean> = context.dataStore.data.map { it[splitKey] ?: true }
-
     suspend fun setTheme(mode: ThemeMode) = context.dataStore.edit { it[themeKey] = mode.name }
-    suspend fun setOpenBeside(enabled: Boolean) = context.dataStore.edit { it[splitKey] = enabled }
 
     val fullScreen: Flow<Boolean> = context.dataStore.data.map { it[fullScreenKey] ?: true }
     val keepScreenOn: Flow<Boolean> = context.dataStore.data.map { it[keepScreenOnKey] ?: false }

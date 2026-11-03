@@ -35,11 +35,20 @@ fun CockpitCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(Space.cardRadius)
+    // Glass panel: translucent fill over the background glow, with a hairline edge lit from above.
     Column(
         modifier
             .clip(shape)
             .background(CockpitColors.Surface)
-            .border(BorderStroke(1.dp, CockpitColors.Stroke), shape)
+            .border(
+                BorderStroke(
+                    1.dp,
+                    androidx.compose.ui.graphics.Brush.verticalGradient(
+                        listOf(CockpitColors.Stroke, CockpitColors.Stroke.copy(alpha = 0.05f)),
+                    ),
+                ),
+                shape,
+            )
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(padding),
         content = content,

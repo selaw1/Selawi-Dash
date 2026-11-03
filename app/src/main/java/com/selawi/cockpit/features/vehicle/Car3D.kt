@@ -7,8 +7,21 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.util.VelocityTracker
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
@@ -24,9 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalInspectionMode
-import androidx.compose.ui.unit.sp
 import com.selawi.cockpit.core.design.CockpitColors
-import com.selawi.cockpit.core.design.SectionLabel
 import com.selawi.cockpit.core.design.Space
 
 /**
@@ -35,28 +46,69 @@ import com.selawi.cockpit.core.design.Space
  * driver's eye.
  */
 @Composable
-fun Car3D(state: DrivingState, modifier: Modifier = Modifier, showFront: Boolean = true) {
+fun Car3D(state: DrivingState, modifier: Modifier = Modifier) {
     val drive by animateFloatAsState(if (state.driving) 1f else 0f, tween(1200), label = "drive")
+    val control = remember { CarControl() }
+    var touched by rememberSaveable { mutableStateOf(false) }
+    val hint by animateFloatAsState(if (touched || state.driving) 0f else 1f, tween(600), label = "hint")
     Box(modifier) {
         RoadBackdrop(drive, state.speedKmh, Modifier.fillMaxSize())
         if (LocalInspectionMode.current) {
             CarStandIn(Modifier.fillMaxSize())
         } else {
-            LiveCar(Modifier.fillMaxSize(), state.speedKmh, state.driving, showFront)
+            LiveCar(Modifier.fillMaxSize(), state.speedKmh, state.driving, control)
         }
-        Column(Modifier.align(Alignment.TopStart).padding(Space.l)) {
-            SectionLabel(if (state.driving) "Driving" else "Parked")
-            if (state.driving) {
-                Text(
-                    "${state.speedKmh}",
-                    style = MaterialTheme.typography.displayMedium,
-                    color = CockpitColors.TextPrimary,
-                )
-                Text("km/h", style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp), color = CockpitColors.TextSecondary)
-            }
+        // Touch layer above the 3D view: drag to turn the car, double-tap to face it front again.
+        Box(
+            Modifier
+                .fillMaxSize()
+                .pointerInput(control) {
+                    val tracker = VelocityTracker()
+                    detectHorizontalDragGestures(
+                        onDragStart = { tracker.resetTracking(); touched = true },
+                        onDragEnd = { control.release(tracker.calculateVelocity().x / size.width * DEGREES_PER_WIDTH) },
+                        onDragCancel = { control.release(0f) },
+                    ) { change, dx ->
+                        tracker.addPosition(change.uptimeMillis, change.position)
+                        control.drag(dx / size.width * DEGREES_PER_WIDTH)
+                    }
+                }
+                .pointerInput(control) { detectTapGestures(onDoubleTap = { control.reset() }) },
+        )
+        Row(
+            Modifier.align(Alignment.TopStart).padding(Space.l),
+            horizontalArrangement = Arrangement.spacedBy(Space.s),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            StatusPill(if (state.driving) "DRIVING" else "PARKED", highlight = state.driving)
+            state.headingDeg?.let { StatusPill(compassPoint(it)) }
+        }
+        if (hint > 0.01f) {
+            Text(
+                "Drag to turn · double-tap to reset",
+                style = MaterialTheme.typography.labelMedium,
+                color = CockpitColors.TextTertiary.copy(alpha = hint),
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = Space.l),
+            )
         }
     }
 }
+
+@Composable
+private fun StatusPill(text: String, highlight: Boolean = false) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = if (highlight) CockpitColors.OnAccent else CockpitColors.TextSecondary,
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(if (highlight) CockpitColors.Accent else CockpitColors.SurfaceHigh)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    )
+}
+
+/** Dragging across the whole card turns the car this far. */
+private const val DEGREES_PER_WIDTH = 240f
 
 /** Floor glow when parked, perspective road lines when driving. */
 @Composable

@@ -25,7 +25,7 @@ object CrashLog {
                 val trace = StringWriter().also { error.printStackTrace(PrintWriter(it)) }
                 val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
                 file(app).writeText(
-                    "Selawi Cockpit ${BuildConfig.VERSION_NAME} crashed at $stamp\n" +
+                    "Selawi Dash ${BuildConfig.VERSION_NAME} crashed at $stamp\n" +
                         "Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}), thread ${thread.name}\n\n$trace",
                 )
             }

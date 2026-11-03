@@ -10,7 +10,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.ExperimentalTextApi
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
+import com.selawi.cockpit.R
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -33,11 +38,11 @@ class Palette(
 
 val NightPalette = Palette(
     dark = true,
-    background = Color(0xFF05070A),
-    backgroundGlow = Color(0xFF0B1E2A),
-    surface = Color(0xFF0E131A),
-    surfaceHigh = Color(0xFF18202A),
-    stroke = Color(0xFF1E2833),
+    background = Color(0xFF040608),
+    backgroundGlow = Color(0xFF0A2230),
+    surface = Color(0xCC10161E),
+    surfaceHigh = Color(0xFF1A232E),
+    stroke = Color(0x33FFFFFF),
     accent = Color(0xFF3DDCFF),
     accentDim = Color(0xFF16485A),
     onAccent = Color(0xFF031015),
@@ -49,11 +54,11 @@ val NightPalette = Palette(
 
 val DayPalette = Palette(
     dark = false,
-    background = Color(0xFFE9EDF2),
-    backgroundGlow = Color(0xFFD3E9F3),
-    surface = Color(0xFFF8FAFC),
-    surfaceHigh = Color(0xFFE6EBF1),
-    stroke = Color(0xFFD5DCE4),
+    background = Color(0xFFE6EBF0),
+    backgroundGlow = Color(0xFFCDE8F4),
+    surface = Color(0xD9FFFFFF),
+    surfaceHigh = Color(0xFFE4EAF0),
+    stroke = Color(0x1A0D141B),
     accent = Color(0xFF0088B8),
     accentDim = Color(0xFFBFE6F4),
     onAccent = Color(0xFFFFFFFF),
@@ -96,17 +101,33 @@ object Space {
     val touch = 64.dp
 }
 
+/** Space Grotesk for numbers and headings: wide, technical, easy to read at a glance. */
+@OptIn(ExperimentalTextApi::class)
+val DisplayFont = FontFamily(
+    listOf(300, 400, 500, 600, 700).map { w ->
+        Font(R.font.space_grotesk, FontWeight(w), variationSettings = FontVariation.Settings(FontVariation.weight(w)))
+    },
+)
+
+/** Inter for running text. */
+@OptIn(ExperimentalTextApi::class)
+val TextFont = FontFamily(
+    listOf(400, 500, 600).map { w ->
+        Font(R.font.inter, FontWeight(w), variationSettings = FontVariation.Settings(FontVariation.weight(w)))
+    },
+)
+
 private val typography = Typography(
-    displayLarge = TextStyle(fontSize = 96.sp, fontWeight = FontWeight.Light, letterSpacing = (-2).sp),
-    displayMedium = TextStyle(fontSize = 64.sp, fontWeight = FontWeight.Light, letterSpacing = (-1).sp),
-    displaySmall = TextStyle(fontSize = 48.sp, fontWeight = FontWeight.Light, letterSpacing = (-1).sp),
-    headlineMedium = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.SemiBold),
-    titleLarge = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.SemiBold),
-    titleMedium = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.Medium),
-    bodyLarge = TextStyle(fontSize = 18.sp),
-    bodyMedium = TextStyle(fontSize = 16.sp),
-    labelLarge = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp),
-    labelMedium = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.2.sp),
+    displayLarge = TextStyle(fontFamily = DisplayFont, fontSize = 112.sp, fontWeight = FontWeight.Light, letterSpacing = (-4).sp),
+    displayMedium = TextStyle(fontFamily = DisplayFont, fontSize = 64.sp, fontWeight = FontWeight.Light, letterSpacing = (-2).sp),
+    displaySmall = TextStyle(fontFamily = DisplayFont, fontSize = 44.sp, fontWeight = FontWeight.Normal, letterSpacing = (-1).sp),
+    headlineMedium = TextStyle(fontFamily = DisplayFont, fontSize = 30.sp, fontWeight = FontWeight.Medium),
+    titleLarge = TextStyle(fontFamily = TextFont, fontSize = 24.sp, fontWeight = FontWeight.SemiBold),
+    titleMedium = TextStyle(fontFamily = TextFont, fontSize = 19.sp, fontWeight = FontWeight.Medium),
+    bodyLarge = TextStyle(fontFamily = TextFont, fontSize = 18.sp),
+    bodyMedium = TextStyle(fontFamily = TextFont, fontSize = 16.sp),
+    labelLarge = TextStyle(fontFamily = TextFont, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp),
+    labelMedium = TextStyle(fontFamily = DisplayFont, fontSize = 13.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.6.sp),
 )
 
 /** Night or day theme. [dark] is decided by the caller from the time of day or the driver's choice. */

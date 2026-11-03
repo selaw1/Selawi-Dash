@@ -50,12 +50,11 @@ import kotlin.math.min
  * [speedKmh] and [driving] are read every frame.
  */
 @Composable
-internal fun LiveCar(modifier: Modifier, speedKmh: Int, driving: Boolean, showFront: Boolean) {
+internal fun LiveCar(modifier: Modifier, speedKmh: Int, driving: Boolean, control: CarControl) {
     val context = LocalContext.current
     val speed = rememberUpdatedState(speedKmh)
     val isDriving = rememberUpdatedState(driving)
-    val front = rememberUpdatedState(showFront)
-    val renderer = remember { CarRenderer(context) { Telemetry(speed.value, isDriving.value, front.value) } }
+    val renderer = remember { CarRenderer(context, control) { Telemetry(speed.value, isDriving.value) } }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
 
     LaunchedEffect(renderer) {
@@ -95,9 +94,40 @@ object CarModel {
  * Parked, the car turns slowly. Driving, it swings round to a chase view and its wheels spin with
  * the GPS speed.
  */
-internal class Telemetry(val speedKmh: Int, val driving: Boolean, val showFront: Boolean)
+internal class Telemetry(val speedKmh: Int, val driving: Boolean)
 
-private class CarRenderer(context: Context, private val telemetry: () -> Telemetry) {
+/**
+ * Touch input for the car, written by the UI and read by the renderer on each frame
+ * (both on the main thread).
+ */
+class CarControl {
+    internal var pendingDegrees = 0f
+    internal var flingDegreesPerSecond = 0f
+    internal var resetRequested = false
+
+    /** The driver dragged the car round by this many degrees. */
+    fun drag(degrees: Float) {
+        pendingDegrees += degrees
+        flingDegreesPerSecond = 0f
+    }
+
+    /** The finger left the screen; the car keeps turning a little and slows down. */
+    fun release(degreesPerSecond: Float) {
+        flingDegreesPerSecond = degreesPerSecond.coerceIn(-720f, 720f)
+    }
+
+    /** Back to the default front three-quarter view. */
+    fun reset() {
+        resetRequested = true
+        flingDegreesPerSecond = 0f
+    }
+}
+
+private class CarRenderer(
+    context: Context,
+    private val control: CarControl,
+    private val telemetry: () -> Telemetry,
+) {
     val textureView = TextureView(context)
 
     private val engine: Engine
@@ -120,6 +150,8 @@ private class CarRenderer(context: Context, private val telemetry: () -> Telemet
     private val baseRoot = FloatArray(16)
     private val wheels = mutableListOf<Wheel>()
     private var yawDeg = FRONT_YAW
+    private var userYaw = FRONT_YAW
+    private var resetting = false
     private var wheelAngle = 0f
     private var lastFrame = 0L
     private var running = false
@@ -255,7 +287,7 @@ private class CarRenderer(context: Context, private val telemetry: () -> Telemet
         val dt = if (lastFrame == 0L) 0f else ((frameTimeNanos - lastFrame) / 1e9f).coerceIn(0f, 0.1f)
         lastFrame = frameTimeNanos
         val t = telemetry()
-        animate(dt, t.speedKmh, t.driving, t.showFront)
+        animate(dt, t.speedKmh, t.driving)
         val chain = swapChain ?: return
         if (!uiHelper.isReadyToRender) return
         if (renderer.beginFrame(chain, frameTimeNanos)) {
@@ -264,17 +296,35 @@ private class CarRenderer(context: Context, private val telemetry: () -> Telemet
         }
     }
 
-    private fun animate(dt: Float, speedKmh: Int, driving: Boolean, showFront: Boolean) {
+    private fun animate(dt: Float, speedKmh: Int, driving: Boolean) {
         val loaded = asset ?: return
-        // Parked: still, three-quarter view of the front or the back. Driving: chase view from behind.
-        val target = when {
-            driving -> 180f
-            showFront -> FRONT_YAW
-            else -> BACK_YAW
+        // Parked: wherever the driver turned it, with a little momentum after a flick.
+        userYaw += control.pendingDegrees
+        control.pendingDegrees = 0f
+        if (abs(control.flingDegreesPerSecond) > 1f) {
+            userYaw += control.flingDegreesPerSecond * dt
+            control.flingDegreesPerSecond *= kotlin.math.exp(-3.5f * dt)
+        } else {
+            control.flingDegreesPerSecond = 0f
         }
+        var easing = 14f
+        if (control.resetRequested) {
+            control.resetRequested = false
+            // Turn back the short way round.
+            userYaw = yawDeg + (((FRONT_YAW - yawDeg) % 360f + 540f) % 360f - 180f)
+            resetting = true
+        }
+        if (resetting) easing = 3f
+        // Driving: chase view from behind; the driver's angle comes back when the car stops.
+        val target = if (driving) 180f else userYaw
+        if (driving) easing = 2.2f
         var diff = ((target - yawDeg) % 360f + 540f) % 360f - 180f
-        if (abs(diff) < 0.05f) diff = 0f
-        yawDeg += diff * min(1f, dt * 2.2f)
+        if (!driving) diff = target - yawDeg
+        if (abs(diff) < 0.05f) {
+            diff = 0f
+            resetting = false
+        }
+        yawDeg += diff * min(1f, dt * easing)
         val root = FloatArray(16)
         Matrix.setRotateM(root, 0, yawDeg, 0f, 1f, 0f)
         val world = FloatArray(16)
@@ -385,7 +435,6 @@ private class CarRenderer(context: Context, private val telemetry: () -> Telemet
 
     private companion object {
         const val FRONT_YAW = 35f
-        const val BACK_YAW = 215f
         const val WHEEL_RADIUS_M = 0.34f
         val WHEEL_NODES = listOf("WheelFrontL", "WheelFrontR", "WheelRearL", "WheelRearR")
     }

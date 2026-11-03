@@ -12,7 +12,13 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URL
+import java.time.LocalDateTime
+import java.time.LocalTime
 import kotlin.math.roundToInt
+
+enum class Sky { Clear, PartlyCloudy, Cloudy, Fog, Rain, Snow, Storm }
+
+data class HourForecast(val time: LocalTime, val temperature: Int, val sky: Sky, val isDay: Boolean)
 
 data class Weather(
     val temperature: Int,
@@ -21,9 +27,13 @@ data class Weather(
     val condition: String,
     val isDay: Boolean,
     val place: String,
+    val sky: Sky = Sky.Clear,
+    val hours: List<HourForecast> = emptyList(),
+    val sunrise: LocalTime? = null,
+    val sunset: LocalTime? = null,
 )
 
-/** Current weather from Open-Meteo: free, no key, no Google services. Refreshes every 20 minutes. */
+/** Weather from Open-Meteo: free, no key, no Google services. Refreshes every 20 minutes. */
 class WeatherRepository(private val context: Context, private val scope: CoroutineScope) {
     private val _weather = MutableStateFlow<Weather?>(null)
     val weather: StateFlow<Weather?> = _weather
@@ -51,30 +61,76 @@ class WeatherRepository(private val context: Context, private val scope: Corouti
             runCatching {
                 val url = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
                     "&current=temperature_2m,weather_code,is_day" +
-                    "&daily=temperature_2m_max,temperature_2m_min&forecast_days=1&timezone=auto"
-                val c = URL(url).openConnection() as HttpURLConnection
-                c.connectTimeout = 8000
-                c.readTimeout = 8000
-                val body = try {
-                    c.inputStream.bufferedReader().use { it.readText() }
-                } finally {
-                    c.disconnect()
-                }
-                val json = JSONObject(body)
-                val current = json.getJSONObject("current")
-                val daily = json.getJSONObject("daily")
-                Weather(
-                    temperature = current.getDouble("temperature_2m").roundToInt(),
-                    high = daily.getJSONArray("temperature_2m_max").getDouble(0).roundToInt(),
-                    low = daily.getJSONArray("temperature_2m_min").getDouble(0).roundToInt(),
-                    condition = describe(current.getInt("weather_code")),
-                    isDay = current.optInt("is_day", 1) == 1,
-                    place = place,
-                )
+                    "&hourly=temperature_2m,weather_code,is_day&forecast_hours=7" +
+                    "&daily=temperature_2m_max,temperature_2m_min,sunrise,sunset&forecast_days=1&timezone=auto"
+                parse(JSONObject(get(url)), place)
             }.getOrNull()
         }
         // Keep the last good reading when the car is offline.
         if (result != null) _weather.value = result
+    }
+
+    private fun get(url: String): String {
+        val c = URL(url).openConnection() as HttpURLConnection
+        c.connectTimeout = 8000
+        c.readTimeout = 8000
+        return try {
+            c.inputStream.bufferedReader().use { it.readText() }
+        } finally {
+            c.disconnect()
+        }
+    }
+
+    private fun parse(json: JSONObject, place: String): Weather {
+        val current = json.getJSONObject("current")
+        val daily = json.getJSONObject("daily")
+        val code = current.getInt("weather_code")
+        val hourly = json.optJSONObject("hourly")
+        val hours = buildList {
+            if (hourly != null) {
+                val times = hourly.getJSONArray("time")
+                val temps = hourly.getJSONArray("temperature_2m")
+                val codes = hourly.getJSONArray("weather_code")
+                val days = hourly.optJSONArray("is_day")
+                // Skip the current hour; the next six follow.
+                for (i in 1 until times.length()) {
+                    add(
+                        HourForecast(
+                            time = LocalDateTime.parse(times.getString(i)).toLocalTime(),
+                            temperature = temps.getDouble(i).roundToInt(),
+                            sky = skyOf(codes.getInt(i)),
+                            isDay = (days?.optInt(i, 1) ?: 1) == 1,
+                        ),
+                    )
+                }
+            }
+        }
+        fun dailyTime(key: String) = runCatching {
+            LocalDateTime.parse(daily.getJSONArray(key).getString(0)).toLocalTime()
+        }.getOrNull()
+        return Weather(
+            temperature = current.getDouble("temperature_2m").roundToInt(),
+            high = daily.getJSONArray("temperature_2m_max").getDouble(0).roundToInt(),
+            low = daily.getJSONArray("temperature_2m_min").getDouble(0).roundToInt(),
+            condition = describe(code),
+            isDay = current.optInt("is_day", 1) == 1,
+            place = place,
+            sky = skyOf(code),
+            hours = hours.take(6),
+            sunrise = dailyTime("sunrise"),
+            sunset = dailyTime("sunset"),
+        )
+    }
+
+    private fun skyOf(code: Int) = when (code) {
+        0, 1 -> Sky.Clear
+        2 -> Sky.PartlyCloudy
+        3 -> Sky.Cloudy
+        45, 48 -> Sky.Fog
+        in 51..67, in 80..82 -> Sky.Rain
+        in 71..77, 85, 86 -> Sky.Snow
+        in 95..99 -> Sky.Storm
+        else -> Sky.Cloudy
     }
 
     private fun describe(code: Int) = when (code) {

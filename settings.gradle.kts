@@ -15,5 +15,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "SelawiCockpit"
 include(":app")
-include(":companion")
 include(":probe")

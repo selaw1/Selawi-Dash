@@ -19,21 +19,21 @@ import com.selawi.cockpit.core.design.CockpitTheme
 import com.selawi.cockpit.features.apps.AppInfo
 import com.selawi.cockpit.features.apps.AppsScreen
 import com.selawi.cockpit.features.assistant.AssistantScreen
-import com.selawi.cockpit.features.dashboard.DashboardActions
 import com.selawi.cockpit.features.dashboard.DashboardScreen
 import com.selawi.cockpit.features.dashboard.DashboardState
 import com.selawi.cockpit.features.media.MediaControls
-import com.selawi.cockpit.features.media.MediaScreen
 import com.selawi.cockpit.features.media.MediaSource
 import com.selawi.cockpit.features.media.NowPlaying
-import com.selawi.cockpit.features.navigation.MapScreen
 import com.selawi.cockpit.features.settings.SettingsActions
 import com.selawi.cockpit.features.settings.SettingsScreen
 import com.selawi.cockpit.features.settings.SettingsState
 import com.selawi.cockpit.data.local.ThemeMode
 import com.selawi.cockpit.features.vehicle.DrivingState
-import com.selawi.cockpit.features.phone.NavGuidance
+import com.selawi.cockpit.features.weather.HourForecast
+import com.selawi.cockpit.features.weather.Sky
 import com.selawi.cockpit.features.weather.Weather
+import com.selawi.cockpit.features.vehicle.Trip
+import java.time.LocalTime
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDateTime
@@ -49,21 +49,19 @@ class ScreenshotTest {
     )
 
     @Test
-    fun dashboard() = shot(Destination.Home) { compact -> Dashboard(compact) }
+    fun dashboard() = shot(Destination.Home) { compact -> Dashboard(compact, parked) }
+
+    @Test
+    fun dashboardDriving() = shot(Destination.Home) { compact -> Dashboard(compact, moving) }
+
+    @Test
+    fun dashboardDay() = shot(Destination.Home, dark = false) { compact -> Dashboard(compact, moving) }
 
     @Test
     fun dashboardSplitScreen() {
-        // Roughly half the screen, as beside DiAuto in BYD's split screen.
+        // Roughly half the screen, as in BYD's split screen.
         paparazzi.unsafeUpdateConfig(deviceConfig = carScreen(940))
-        shot(Destination.Home) { compact -> Dashboard(compact) }
-    }
-
-    @Test
-    fun map() = shot(Destination.Map) { MapScreen() }
-
-    @Test
-    fun media() = shot(Destination.Media) {
-        MediaScreen(playing = playing, access = false, controls = MediaControls.None, onAllowAccess = {})
+        shot(Destination.Home) { compact -> Dashboard(compact, parked) }
     }
 
     @Test
@@ -72,65 +70,53 @@ class ScreenshotTest {
     }
 
     @Test
-    fun assistant() = shot(Destination.Assistant) { AssistantScreen() }
-
-    @Test
-    fun settings() = shot(Destination.Settings) {
-        SettingsScreen(
-            SettingsState(
-                fullScreen = true, keepOn = false, theme = ThemeMode.Auto, openBeside = true,
-                musicAccess = false, crash = null,
-            ),
-            SettingsActions(),
-        )
-    }
-
-    @Test
-    fun dashboardNavigating() {
-        guidance = NavGuidance("300 m", "Turn right onto King Abdullah II Street", "12 min · 5.3 km · 15:03", null)
-        shot(Destination.Home) { compact -> Dashboard(compact) }
-    }
-
-    private var guidance: NavGuidance? = null
-
-    @Test
-    fun dashboardDay() = shot(Destination.Home, dark = false) { compact -> Dashboard(compact) }
-
-    @Test
     fun appsDay() = shot(Destination.Apps, dark = false) {
         AppsScreen(apps = allApps, pinned = allApps.take(5), onOpen = {}, onTogglePin = {}, onCarHome = {})
     }
 
     @Test
-    fun dashboardDriving() {
-        driving = DrivingState(speedKmh = 62, driving = true)
-        shot(Destination.Home) { compact -> Dashboard(compact) }
+    fun assistant() = shot(Destination.Assistant) { AssistantScreen() }
+
+    @Test
+    fun settings() = shot(Destination.Settings) {
+        SettingsScreen(SettingsState(fullScreen = true, keepOn = false, theme = ThemeMode.Auto, crash = null), SettingsActions())
     }
 
-    private var driving = DrivingState()
+    private val parked = DrivingState(trip = Trip(distanceKm = 23.4, movingSeconds = 2460, maxKmh = 96))
+    private val moving = DrivingState(speedKmh = 62, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96))
 
     @Composable
-    private fun Dashboard(compact: Boolean) {
+    private fun Dashboard(compact: Boolean, driving: DrivingState) {
         DashboardScreen(
             compact = compact,
             state = DashboardState(
-                weather = Weather(27, 31, 18, "Mostly clear", isDay = true, place = "Amman"),
+                weather = Weather(
+                    27, 31, 18, "Mostly clear", isDay = true, place = "Amman", sky = Sky.Clear,
+                    hours = listOf(
+                        HourForecast(LocalTime.of(14, 0), 28, Sky.Clear, true),
+                        HourForecast(LocalTime.of(15, 0), 28, Sky.PartlyCloudy, true),
+                        HourForecast(LocalTime.of(16, 0), 26, Sky.PartlyCloudy, true),
+                        HourForecast(LocalTime.of(17, 0), 24, Sky.Cloudy, true),
+                        HourForecast(LocalTime.of(18, 0), 21, Sky.Clear, false),
+                        HourForecast(LocalTime.of(19, 0), 19, Sky.Rain, false),
+                    ),
+                    sunrise = LocalTime.of(6, 12),
+                    sunset = LocalTime.of(16, 58),
+                ),
                 playing = playing,
                 driving = driving,
-                guidance = guidance,
                 fixedTime = LocalDateTime.of(2026, 11, 3, 12, 51),
             ),
             controls = MediaControls.None,
-            actions = DashboardActions({}),
         )
     }
 
     private fun shot(destination: Destination, dark: Boolean = true, content: @Composable (Boolean) -> Unit) {
         paparazzi.snapshot {
-            // Marks this as a preview, so the map draws its stand-in instead of the native engine.
+            // Marks this as a preview, so the 3D car draws its stand-in instead of the native engine.
             CompositionLocalProvider(LocalInspectionMode provides true) {
                 CockpitTheme(dark) {
-                    CockpitFrame(destination, onSelect = {}) { compact -> content(compact) }
+                    DashFrame(destination, onSelect = {}) { compact -> content(compact) }
                 }
             }
         }
@@ -154,7 +140,10 @@ class ScreenshotTest {
         packageName = "com.spotify.music",
         isPlaying = true,
         art = artwork(),
-        source = MediaSource.Broadcast,
+        source = MediaSource.Browser,
+            durationMs = 200_000,
+            positionMs = 74_000,
+            positionAt = 1,
         )
     }
 

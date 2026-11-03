@@ -2,14 +2,6 @@ package com.selawi.cockpit
 
 import android.Manifest
 import android.content.Intent
-import androidx.compose.runtime.mutableIntStateOf
-import com.selawi.cockpit.core.platform.CrashLog
-import com.selawi.cockpit.core.platform.SplitScreen
-import com.selawi.cockpit.data.local.ThemeMode
-import com.selawi.cockpit.features.settings.SettingsActions
-import com.selawi.cockpit.features.settings.SettingsState
-import kotlinx.coroutines.delay
-import java.time.LocalTime
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -18,21 +10,20 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -43,13 +34,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import com.selawi.cockpit.features.vehicle.CarModel
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -57,31 +45,36 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.selawi.cockpit.core.design.CockpitColors
 import com.selawi.cockpit.core.design.CockpitIcons
 import com.selawi.cockpit.core.design.CockpitTheme
 import com.selawi.cockpit.core.design.Space
+import com.selawi.cockpit.core.platform.CrashLog
 import com.selawi.cockpit.core.platform.hasLocationPermission
 import com.selawi.cockpit.core.platform.openCarHome
 import com.selawi.cockpit.core.platform.tryStart
+import com.selawi.cockpit.data.local.ThemeMode
 import com.selawi.cockpit.features.apps.AppInfo
 import com.selawi.cockpit.features.apps.AppsScreen
 import com.selawi.cockpit.features.assistant.AssistantScreen
-import com.selawi.cockpit.features.dashboard.DashboardActions
 import com.selawi.cockpit.features.dashboard.DashboardScreen
 import com.selawi.cockpit.features.dashboard.DashboardState
 import com.selawi.cockpit.features.media.MediaControls
-import com.selawi.cockpit.features.media.NotificationAccess
-import com.selawi.cockpit.features.media.MediaScreen
-import com.selawi.cockpit.features.navigation.MapScreen
+import com.selawi.cockpit.features.settings.SettingsActions
 import com.selawi.cockpit.features.settings.SettingsScreen
+import com.selawi.cockpit.features.settings.SettingsState
+import com.selawi.cockpit.features.vehicle.CarModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import java.time.LocalTime
 
 enum class Destination(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Filled.Home),
-    Map("Map", CockpitIcons.Map),
-    Media("Media", CockpitIcons.MusicNote),
     Apps("Apps", CockpitIcons.Apps),
     Assistant("Assistant", CockpitIcons.Mic),
     Settings("Settings", Icons.Filled.Settings),
@@ -109,22 +102,15 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         var destination by rememberSaveable { mutableStateOf(Destination.Home) }
         val scope = rememberCoroutineScope()
         val playing by app.media.nowPlaying.collectAsStateWithLifecycle()
-        val access by app.media.sessionAccess.collectAsStateWithLifecycle()
-        val readableApps by app.media.browserApps.collectAsStateWithLifecycle()
         val pinned by app.apps.pinned.collectAsStateWithLifecycle()
         val allApps by app.apps.apps.collectAsStateWithLifecycle()
         val driving by app.driving.state.collectAsStateWithLifecycle()
-        val guidance by app.phone.guidance.collectAsStateWithLifecycle()
-        val phoneStatus by app.phone.status.collectAsStateWithLifecycle()
-        val phoneCode by app.phone.code.collectAsStateWithLifecycle()
-        val phoneAddress by app.phone.address.collectAsStateWithLifecycle()
         val fullScreen by app.settings.fullScreen.collectAsStateWithLifecycle(initialValue = true)
         val keepOn by app.settings.keepScreenOn.collectAsStateWithLifecycle(initialValue = false)
-        val openBeside by app.settings.openBeside.collectAsStateWithLifecycle(initialValue = true)
         var crash by remember { mutableStateOf(CrashLog.read(activity)) }
         val controls = remember { MediaControls.of(app.media) }
 
-        // Location makes the map follow the car, the weather local and the 3D car react to driving.
+        // Location gives the speed, trip, heading and local weather. The dashboard works without it.
         val locationRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
             app.weather.refreshNow()
             app.driving.start()
@@ -146,35 +132,20 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                 }
             }
         }
-        val launch: (Intent) -> Unit = { intent ->
-            if (openBeside) SplitScreen.openBeside(activity, intent) else activity.tryStart(intent)
-        }
-        val openApp: (AppInfo) -> Unit = { launch(app.apps.launch(it)) }
+        val openApp: (AppInfo) -> Unit = { activity.tryStart(app.apps.launch(it), "${it.label} could not be opened") }
 
-        CockpitFrame(destination, onSelect = { destination = it }) { compact ->
+        DashFrame(destination, onSelect = { destination = it }) { compact ->
             AnimatedContent(
                 targetState = destination,
-                transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
+                transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) },
                 label = "destination",
                 modifier = Modifier.fillMaxSize(),
             ) { target ->
                 when (target) {
                     Destination.Home -> DashboardScreen(
                         compact = compact,
-                        state = DashboardState(weather, playing, driving, guidance),
+                        state = DashboardState(weather, playing, driving),
                         controls = controls,
-                        actions = DashboardActions(
-                            onOpenAssistant = { destination = Destination.Assistant },
-                        ),
-                    )
-                    Destination.Map -> MapScreen(guidance)
-                    Destination.Media -> MediaScreen(
-                        playing = playing,
-                        access = access,
-                        controls = controls,
-                        onAllowAccess = { NotificationAccess.open(activity) },
-                        readableApps = readableApps,
-                        onOpenApp = launch,
                     )
                     Destination.Apps -> {
                         LaunchedEffect(Unit) { app.apps.refresh() }
@@ -188,13 +159,11 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     }
                     Destination.Assistant -> AssistantScreen()
                     Destination.Settings -> SettingsScreen(
-                        state = SettingsState(fullScreen, keepOn, themeMode, openBeside, access, crash, phoneStatus, phoneCode, phoneAddress),
+                        state = SettingsState(fullScreen, keepOn, themeMode, crash),
                         actions = SettingsActions(
                             onFullScreen = { scope.launch { app.settings.setFullScreen(it) } },
                             onKeepOn = { scope.launch { app.settings.setKeepScreenOn(it) } },
                             onTheme = { scope.launch { app.settings.setTheme(it) } },
-                            onOpenBeside = { scope.launch { app.settings.setOpenBeside(it) } },
-                            onAllowAccess = { NotificationAccess.open(activity) },
                             onCarHome = { activity.openCarHome() },
                             onChooseCar = { carPicker.launch(arrayOf("*/*")) },
                             onDefaultCar = { CarModel.customFile(activity).delete() },
@@ -217,11 +186,11 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
 }
 
 /**
- * The cockpit frame: background, safe area and the left rail. Content gets whether the window is
- * narrow (beside DiAuto in split screen).
+ * The dashboard frame: a soft glow on the background, the content, and the dock along the bottom.
+ * Content learns whether the window is narrow (for example in the car's split screen).
  */
 @Composable
-fun CockpitFrame(
+fun DashFrame(
     selected: Destination,
     onSelect: (Destination) -> Unit,
     content: @Composable (compact: Boolean) -> Unit,
@@ -229,70 +198,78 @@ fun CockpitFrame(
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
+            .background(CockpitColors.Background)
             .background(
                 Brush.radialGradient(
-                    listOf(CockpitColors.BackgroundGlow, CockpitColors.Background),
-                    center = Offset(0f, 0f),
-                    radius = 1800f,
+                    listOf(CockpitColors.BackgroundGlow, Color.Transparent),
+                    center = Offset(900f, 700f),
+                    radius = 1500f,
                 ),
             )
             .safeDrawingPadding(),
     ) {
-        // Beside DiAuto in split screen the window is roughly half the screen wide.
         val compact = maxWidth < 840.dp
-        Row(Modifier.fillMaxSize()) {
-            NavigationRail(selected, compact, onSelect)
-            Box(
-                Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(top = Space.m, end = Space.m, bottom = Space.m),
-            ) { content(compact) }
+        Column(Modifier.fillMaxSize().padding(start = Space.l, end = Space.l, top = Space.m)) {
+            Box(Modifier.fillMaxWidth().weight(1f)) { content(compact) }
+            Dock(selected, compact, onSelect, Modifier.align(Alignment.CenterHorizontally).padding(vertical = Space.m))
         }
     }
 }
 
-/** Left-hand rail, on the driver's side. Icons only when the window is narrow. */
+/** Floating dock with the four places; the assistant sits in the middle as the main action. */
 @Composable
-private fun NavigationRail(selected: Destination, compact: Boolean, onSelect: (Destination) -> Unit) {
-    Column(
-        Modifier
-            .width(if (compact) 88.dp else 112.dp)
-            .fillMaxHeight()
-            .padding(vertical = Space.m, horizontal = Space.s),
-        verticalArrangement = Arrangement.spacedBy(Space.xs),
-        horizontalAlignment = Alignment.CenterHorizontally,
+private fun Dock(selected: Destination, compact: Boolean, onSelect: (Destination) -> Unit, modifier: Modifier) {
+    val shape = RoundedCornerShape(40.dp)
+    Row(
+        modifier
+            .clip(shape)
+            .background(CockpitColors.Surface)
+            .border(1.dp, CockpitColors.Stroke, shape)
+            .padding(horizontal = Space.s, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(Space.xs),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
         Destination.entries.forEach { d ->
-            if (d == Destination.Settings) Spacer(Modifier.weight(1f))
             val active = d == selected
-            Column(
-                Modifier
-                    .fillMaxWidth()
-                    .height(if (compact) 72.dp else 84.dp)
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(if (active) CockpitColors.SurfaceHigh else androidx.compose.ui.graphics.Color.Transparent)
-                    .clickable { onSelect(d) },
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
+            if (d == Destination.Assistant) {
+                Box(
+                    Modifier
+                        .padding(horizontal = Space.s)
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(if (active) CockpitColors.Accent else CockpitColors.Accent.copy(alpha = 0.85f))
+                        .clickable { onSelect(d) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(d.icon, contentDescription = d.label, tint = CockpitColors.OnAccent, modifier = Modifier.size(30.dp))
+                }
+            } else {
+                Row(
+                    Modifier
+                        .height(56.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(if (active) CockpitColors.SurfaceHigh else Color.Transparent)
+                        .clickable { onSelect(d) }
+                        .padding(horizontal = 20.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(Space.s),
+                ) {
                     Icon(
                         d.icon,
                         contentDescription = d.label,
                         tint = if (active) CockpitColors.Accent else CockpitColors.TextSecondary,
-                        modifier = Modifier.size(30.dp),
+                        modifier = Modifier.size(26.dp),
                     )
-                }
-                if (!compact) {
-                    Text(
-                        d.label,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = if (active) CockpitColors.TextPrimary else CockpitColors.TextTertiary,
-                        modifier = Modifier.padding(top = 4.dp),
-                    )
+                    if (!compact) {
+                        Text(
+                            d.label,
+                            style = MaterialTheme.typography.labelLarge,
+                            color = if (active) CockpitColors.TextPrimary else CockpitColors.TextSecondary,
+                        )
+                    }
                 }
             }
         }
     }
 }
+

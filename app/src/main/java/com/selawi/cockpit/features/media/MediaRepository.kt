@@ -42,8 +42,20 @@ data class NowPlaying(
     val isPlaying: Boolean = false,
     val art: ImageBitmap? = null,
     val source: MediaSource = MediaSource.None,
+    /** Song length and position, when the player reports them. */
+    val durationMs: Long = 0,
+    val positionMs: Long = 0,
+    /** SystemClock.elapsedRealtime() when [positionMs] was measured, so the bar can move between updates. */
+    val positionAt: Long = 0,
 ) {
     val hasTrack: Boolean get() = title.isNotBlank()
+
+    /** Where the song is now, from 0 to 1, or null when the player gives no position. */
+    fun progress(nowElapsed: Long): Float? {
+        if (durationMs <= 0 || positionAt == 0L) return null
+        val position = positionMs + if (isPlaying) nowElapsed - positionAt else 0
+        return (position.toFloat() / durationMs).coerceIn(0f, 1f)
+    }
 }
 
 /**
@@ -151,6 +163,9 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
             isPlaying = active.playbackState?.state == PlaybackState.STATE_PLAYING,
             art = lastArt,
             source = if (allowed) MediaSource.Session else MediaSource.Browser,
+            durationMs = meta?.getLong(MediaMetadata.METADATA_KEY_DURATION) ?: 0,
+            positionMs = active.playbackState?.position ?: 0,
+            positionAt = active.playbackState?.lastPositionUpdateTime ?: 0,
         )
     }
 
