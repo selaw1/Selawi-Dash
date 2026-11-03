@@ -70,7 +70,7 @@ The probe tests 1, 2 and 3 on the car.
 |---|---|---|
 | Minimum Android | API 24 (Android 7.0) for the probe | Installs on every DiLink generation. Raise for the cockpit once the car's level is known |
 | Target / compile SDK | 35 | Current Play-era requirement; does not affect sideloading |
-| CPU architecture | Universal APK (arm64-v8a, armeabi-v7a, x86, x86_64) | MapLibre ships native code; trim after the probe reports the ABI |
+| CPU architecture | arm64-v8a + armeabi-v7a | Head units are ARM. MapLibre ships native code per ABI; keep only what the probe reports |
 | Package names | `com.selawi.cockpit.probe` (probe), `com.selawi.cockpit` (cockpit) | Both can be installed side by side |
 | Build | GitHub Actions | This development sandbox cannot download the Android SDK |
 | Signing | Fixed test key in the repo for the probe only | Lets new probe builds install over old ones. The cockpit release will use a private key |

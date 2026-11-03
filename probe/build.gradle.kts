@@ -23,6 +23,8 @@ android {
         versionName = "0.1.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
         manifestPlaceholders["mapsApiKey"] = mapsApiKey
         buildConfigField("boolean", "HAS_MAPS_KEY", (mapsApiKey.isNotBlank()).toString())
+        // Head units are ARM; leaving out x86 halves the download.
+        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
     }
 
     signingConfigs {
