@@ -1,7 +1,12 @@
 package com.selawi.cockpit.features.weather
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -62,6 +67,36 @@ fun WeatherCard(weather: Weather?, modifier: Modifier = Modifier, is24h: Boolean
 
 private fun hourLabel(t: LocalTime, is24h: Boolean): String =
     if (is24h) t.format(DateTimeFormatter.ofPattern("HH")) else t.format(DateTimeFormatter.ofPattern("ha")).lowercase()
+
+/** Slim forecast strip: the next six hours, then sunrise and sunset. */
+@Composable
+fun ForecastStrip(weather: Weather?, modifier: Modifier = Modifier, is24h: Boolean = false) {
+    CockpitCard(modifier, padding = 14.dp) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (weather == null || weather.hours.isEmpty()) {
+                Text("Forecast loading…", style = MaterialTheme.typography.bodyMedium, color = CockpitColors.TextTertiary, modifier = Modifier.weight(1f).padding(start = 10.dp))
+            } else {
+                Row(Modifier.weight(1f)) {
+                    weather.hours.forEach { hour ->
+                        Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(hourLabel(hour.time, is24h), style = MaterialTheme.typography.labelSmall, color = CockpitColors.TextSecondary)
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                SkyIcon(hour.sky, hour.isDay, Modifier.size(20.dp), size = 20.dp)
+                                Text("${hour.temperature}°", style = MaterialTheme.typography.headlineMedium.copy(fontSize = 20.sp), color = CockpitColors.TextPrimary)
+                            }
+                        }
+                    }
+                }
+            }
+            Box(Modifier.padding(horizontal = 12.dp).width(1.dp).height(36.dp).background(CockpitColors.Stroke))
+            val fmt = DateTimeFormatter.ofPattern(if (is24h) "HH:mm" else "h:mm")
+            Column(Modifier.padding(end = 10.dp)) {
+                Text("Sunrise " + (weather?.sunrise?.format(fmt) ?: "–"), style = MaterialTheme.typography.labelSmall.copy(fontSize = 13.sp), color = CockpitColors.TextSecondary)
+                Text("Sunset " + (weather?.sunset?.format(fmt) ?: "–"), style = MaterialTheme.typography.labelSmall.copy(fontSize = 13.sp), color = CockpitColors.TextSecondary)
+            }
+        }
+    }
+}
 
 /** Small drawn weather symbol: sun or moon, cloud, rain, snow, fog or storm. */
 @Composable

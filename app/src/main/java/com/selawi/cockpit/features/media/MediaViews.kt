@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -34,7 +35,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -48,7 +49,6 @@ import com.selawi.cockpit.core.design.CockpitCard
 import com.selawi.cockpit.core.design.CockpitColors
 import com.selawi.cockpit.core.design.CockpitIcons
 import com.selawi.cockpit.core.design.RoundIconButton
-import com.selawi.cockpit.core.design.SectionLabel
 import com.selawi.cockpit.core.design.Space
 import kotlinx.coroutines.delay
 
@@ -64,9 +64,20 @@ class MediaControls(
     }
 }
 
+/** The cover's main colour, for the card and the background wash; the accent when there is no cover. */
+@Composable
+fun rememberCoverTint(playing: NowPlaying): Color {
+    val tint by animateColorAsState(
+        remember(playing.art) { playing.art?.let(::dominantColor) } ?: CockpitColors.Accent,
+        tween(900),
+        label = "tint",
+    )
+    return tint
+}
+
 /**
- * Now playing: cover, track, a live progress bar and the controls. The card glows in the cover's
- * main colour, so the dashboard takes on the mood of the music.
+ * Now playing, Tesla-style: a large cover beside the source, song, artist, a live progress bar
+ * with times, and big controls.
  */
 @Composable
 fun MediaCard(
@@ -76,59 +87,63 @@ fun MediaCard(
     compact: Boolean = false,
 ) {
     val context = LocalContext.current
-    val tint by animateColorAsState(
-        remember(playing.art) { playing.art?.let(::dominantColor) } ?: CockpitColors.Accent,
-        tween(800),
-        label = "tint",
-    )
-    CockpitCard(
-        modifier.drawBehind {
-            drawRect(
-                Brush.radialGradient(
-                    listOf(tint.copy(alpha = 0.30f), Color.Transparent),
-                    center = Offset(size.width * 0.2f, 0f),
-                    radius = size.maxDimension,
-                ),
-            )
-        },
-    ) {
-        SectionLabel(if (playing.hasTrack) appLabel(context, playing.packageName) ?: "Now playing" else "Music")
-        Spacer(Modifier.height(Space.m))
-        if (compact) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.m)) {
-                Artwork(playing.art, Modifier.size(88.dp))
-                TrackText(playing, Modifier.weight(1f))
+    val tint = rememberCoverTint(playing)
+    CockpitCard(modifier, padding = Space.l) {
+        Row(Modifier.fillMaxWidth().weight(1f, fill = !compact), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+            val coverModifier = if (compact) Modifier.size(120.dp) else
+                Modifier.fillMaxHeight().widthIn(max = 280.dp).aspectRatio(1f, matchHeightConstraintsFirst = true)
+            Artwork(playing.art, coverModifier.align(Alignment.CenterVertically), tint)
+            Column(Modifier.weight(1f).align(Alignment.CenterVertically)) {
+                Text(
+                    (appLabel(context, playing.packageName) ?: if (playing.hasTrack) "Now playing" else "Music").uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = CockpitColors.Accent,
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (playing.hasTrack) playing.title else "Nothing playing",
+                    style = if (compact) MaterialTheme.typography.titleMedium else MaterialTheme.typography.titleLarge,
+                    color = CockpitColors.TextPrimary,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Text(
+                    if (playing.hasTrack) playing.artist else "Play music on your phone or any app",
+                    style = if (compact) MaterialTheme.typography.bodyMedium else MaterialTheme.typography.titleMedium,
+                    color = CockpitColors.TextSecondary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.height(if (compact) 12.dp else 22.dp))
+                ProgressBar(playing)
+                Spacer(Modifier.height(if (compact) 10.dp else 14.dp))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (compact) 16.dp else 28.dp)) {
+                    RoundIconButton(CockpitIcons.SkipPrevious, "Previous track", size = 56.dp, onClick = controls.previous)
+                    RoundIconButton(
+                        if (playing.isPlaying) CockpitIcons.Pause else CockpitIcons.Play,
+                        if (playing.isPlaying) "Pause" else "Play",
+                        size = 72.dp,
+                        primary = true,
+                        onClick = controls.playPause,
+                    )
+                    RoundIconButton(CockpitIcons.SkipNext, "Next track", size = 56.dp, onClick = controls.next)
+                }
             }
-        } else {
-            Row(Modifier.weight(1f).fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
-                Artwork(playing.art, Modifier.fillMaxHeight().aspectRatio(1f, matchHeightConstraintsFirst = true))
-                TrackText(playing, Modifier.weight(1f).fillMaxHeight(), bottom = true)
-            }
-        }
-        Spacer(Modifier.height(Space.m))
-        ProgressBar(playing, tint)
-        Spacer(Modifier.height(Space.m))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-            RoundIconButton(CockpitIcons.SkipPrevious, "Previous track", onClick = controls.previous)
-            RoundIconButton(
-                if (playing.isPlaying) CockpitIcons.Pause else CockpitIcons.Play,
-                if (playing.isPlaying) "Pause" else "Play",
-                size = 76.dp,
-                primary = true,
-                onClick = controls.playPause,
-            )
-            RoundIconButton(CockpitIcons.SkipNext, "Next track", onClick = controls.next)
         }
     }
 }
 
 @Composable
-private fun Artwork(art: ImageBitmap?, modifier: Modifier) {
+private fun Artwork(art: ImageBitmap?, modifier: Modifier, tint: Color) {
+    val shape = RoundedCornerShape(14.dp)
     AnimatedContent(
         targetState = art,
         transitionSpec = { fadeIn(tween(400)) togetherWith fadeOut(tween(400)) },
         label = "art",
-        modifier = modifier.clip(RoundedCornerShape(18.dp)).background(CockpitColors.SurfaceHigh),
+        modifier = modifier
+            .shadow(if (art != null) 24.dp else 0.dp, shape, ambientColor = tint, spotColor = tint)
+            .clip(shape)
+            .background(CockpitColors.SurfaceHigh),
     ) { image ->
         if (image != null) {
             Image(image, contentDescription = null, contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
@@ -140,29 +155,9 @@ private fun Artwork(art: ImageBitmap?, modifier: Modifier) {
     }
 }
 
+/** Thin bar with elapsed and total time, moving smoothly between player updates. */
 @Composable
-private fun TrackText(playing: NowPlaying, modifier: Modifier, bottom: Boolean = false) {
-    Column(modifier, verticalArrangement = if (bottom) Arrangement.Bottom else Arrangement.Center) {
-        Text(
-            if (playing.hasTrack) playing.title else "Nothing playing",
-            style = MaterialTheme.typography.titleLarge,
-            color = CockpitColors.TextPrimary,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            if (playing.hasTrack) playing.artist else "Play music from your phone or any app",
-            style = MaterialTheme.typography.bodyLarge,
-            color = CockpitColors.TextSecondary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
-/** Thin bar that moves smoothly between player updates. Hidden when the player gives no position. */
-@Composable
-private fun ProgressBar(playing: NowPlaying, tint: Color) {
+private fun ProgressBar(playing: NowPlaying) {
     var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
     LaunchedEffect(playing.isPlaying) {
         while (playing.isPlaying) {
@@ -179,9 +174,21 @@ private fun ProgressBar(playing: NowPlaying, tint: Color) {
             .background(CockpitColors.SurfaceHigh),
     ) {
         if (progress != null) {
-            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(tint))
+            Box(Modifier.fillMaxWidth(progress).fillMaxHeight().background(CockpitColors.TextPrimary))
         }
     }
+    if (progress != null) {
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth()) {
+            Text(clock((progress * playing.durationMs).toLong()), style = MaterialTheme.typography.labelSmall, color = CockpitColors.TextSecondary, modifier = Modifier.weight(1f))
+            Text(clock(playing.durationMs), style = MaterialTheme.typography.labelSmall, color = CockpitColors.TextSecondary)
+        }
+    }
+}
+
+private fun clock(ms: Long): String {
+    val total = ms / 1000
+    return "${total / 60}:${(total % 60).toString().padStart(2, '0')}"
 }
 
 /** Average colour of the cover, made a little brighter and richer so it reads as a glow. */

@@ -9,6 +9,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -134,7 +135,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         }
         val openApp: (AppInfo) -> Unit = { activity.tryStart(app.apps.launch(it), "${it.label} could not be opened") }
 
-        DashFrame(destination, onSelect = { destination = it }) { compact ->
+        DashFrame(destination, onSelect = { destination = it }, pinned = pinned, onOpenApp = openApp) { compact ->
             AnimatedContent(
                 targetState = destination,
                 transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) },
@@ -147,7 +148,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                         state = DashboardState(weather, playing, driving),
                         controls = controls,
                     )
-                    Destination.Apps -> {
+                    Destination.Apps -> Box(Modifier.padding(Space.l)) {
                         LaunchedEffect(Unit) { app.apps.refresh() }
                         AppsScreen(
                             apps = allApps,
@@ -157,8 +158,8 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                             onCarHome = { activity.openCarHome() },
                         )
                     }
-                    Destination.Assistant -> AssistantScreen()
-                    Destination.Settings -> SettingsScreen(
+                    Destination.Assistant -> Box(Modifier.padding(Space.l)) { AssistantScreen() }
+                    Destination.Settings -> Box(Modifier.padding(Space.l)) { SettingsScreen(
                         state = SettingsState(fullScreen, keepOn, themeMode, crash),
                         actions = SettingsActions(
                             onFullScreen = { scope.launch { app.settings.setFullScreen(it) } },
@@ -178,7 +179,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                                 crash = null
                             },
                         ),
-                    )
+                    ) }
                 }
             }
         }
@@ -186,90 +187,96 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
 }
 
 /**
- * The dashboard frame: a soft glow on the background, the content, and the dock along the bottom.
- * Content learns whether the window is narrow (for example in the car's split screen).
+ * The dashboard frame: the content above a full-width dock, Tesla-style. Content learns whether the
+ * window is narrow (for example in the car's split screen).
  */
 @Composable
 fun DashFrame(
     selected: Destination,
     onSelect: (Destination) -> Unit,
+    pinned: List<AppInfo> = emptyList(),
+    onOpenApp: (AppInfo) -> Unit = {},
     content: @Composable (compact: Boolean) -> Unit,
 ) {
     BoxWithConstraints(
         Modifier
             .fillMaxSize()
             .background(CockpitColors.Background)
-            .background(
-                Brush.radialGradient(
-                    listOf(CockpitColors.BackgroundGlow, Color.Transparent),
-                    center = Offset(900f, 700f),
-                    radius = 1500f,
-                ),
-            )
             .safeDrawingPadding(),
     ) {
         val compact = maxWidth < 840.dp
-        Column(Modifier.fillMaxSize().padding(start = Space.l, end = Space.l, top = Space.m)) {
+        Column(Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxWidth().weight(1f)) { content(compact) }
-            Dock(selected, compact, onSelect, Modifier.align(Alignment.CenterHorizontally).padding(vertical = Space.m))
+            Dock(selected, compact, onSelect, pinned, onOpenApp)
         }
     }
 }
 
-/** Floating dock with the four places; the assistant sits in the middle as the main action. */
+/** Home on the left; pinned apps, the assistant and all apps in the middle; settings on the right. */
 @Composable
-private fun Dock(selected: Destination, compact: Boolean, onSelect: (Destination) -> Unit, modifier: Modifier) {
-    val shape = RoundedCornerShape(40.dp)
-    Row(
-        modifier
-            .clip(shape)
-            .background(CockpitColors.Surface)
-            .border(1.dp, CockpitColors.Stroke, shape)
-            .padding(horizontal = Space.s, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(Space.xs),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Destination.entries.forEach { d ->
-            val active = d == selected
-            if (d == Destination.Assistant) {
-                Box(
-                    Modifier
-                        .padding(horizontal = Space.s)
-                        .size(64.dp)
-                        .clip(CircleShape)
-                        .background(if (active) CockpitColors.Accent else CockpitColors.Accent.copy(alpha = 0.85f))
-                        .clickable { onSelect(d) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(d.icon, contentDescription = d.label, tint = CockpitColors.OnAccent, modifier = Modifier.size(30.dp))
-                }
-            } else {
-                Row(
-                    Modifier
-                        .height(56.dp)
-                        .clip(RoundedCornerShape(28.dp))
-                        .background(if (active) CockpitColors.SurfaceHigh else Color.Transparent)
-                        .clickable { onSelect(d) }
-                        .padding(horizontal = 20.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(Space.s),
-                ) {
-                    Icon(
-                        d.icon,
-                        contentDescription = d.label,
-                        tint = if (active) CockpitColors.Accent else CockpitColors.TextSecondary,
-                        modifier = Modifier.size(26.dp),
-                    )
-                    if (!compact) {
-                        Text(
-                            d.label,
-                            style = MaterialTheme.typography.labelLarge,
-                            color = if (active) CockpitColors.TextPrimary else CockpitColors.TextSecondary,
-                        )
+private fun Dock(
+    selected: Destination,
+    compact: Boolean,
+    onSelect: (Destination) -> Unit,
+    pinned: List<AppInfo>,
+    onOpenApp: (AppInfo) -> Unit,
+) {
+    val bar = if (CockpitColors.isDark) Color(0xFF111316) else Color.White
+    Column {
+        Box(Modifier.fillMaxWidth().height(1.dp).background(CockpitColors.Stroke))
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(76.dp)
+                .background(bar)
+                .padding(horizontal = Space.l),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            DockButton(Destination.Home.icon, "Home", selected == Destination.Home) { onSelect(Destination.Home) }
+            Row(
+                Modifier.weight(1f),
+                horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                pinned.take(if (compact) 2 else 6).forEach { appInfo ->
+                    Box(
+                        Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable { onOpenApp(appInfo) },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        appInfo.icon?.let { Image(it, contentDescription = appInfo.label, modifier = Modifier.size(52.dp)) }
                     }
                 }
+                Box(
+                    Modifier
+                        .padding(horizontal = 8.dp)
+                        .size(width = 64.dp, height = 56.dp)
+                        .clip(RoundedCornerShape(28.dp))
+                        .background(CockpitColors.Inverse)
+                        .clickable { onSelect(Destination.Assistant) },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(CockpitIcons.Mic, contentDescription = "Assistant", tint = CockpitColors.OnInverse, modifier = Modifier.size(26.dp))
+                }
+                DockButton(CockpitIcons.Apps, "All apps", selected == Destination.Apps) { onSelect(Destination.Apps) }
             }
+            DockButton(Destination.Settings.icon, "Settings", selected == Destination.Settings) { onSelect(Destination.Settings) }
         }
     }
 }
 
+@Composable
+private fun DockButton(icon: ImageVector, label: String, active: Boolean, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(56.dp)
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (active) CockpitColors.AccentDim else CockpitColors.SurfaceHigh)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(icon, contentDescription = label, tint = if (active) CockpitColors.Accent else CockpitColors.TextPrimary, modifier = Modifier.size(26.dp))
+    }
+}

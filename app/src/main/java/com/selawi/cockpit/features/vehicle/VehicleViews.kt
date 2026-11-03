@@ -1,106 +1,94 @@
 package com.selawi.cockpit.features.vehicle
 
-import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.selawi.cockpit.core.design.CockpitCard
 import com.selawi.cockpit.core.design.CockpitColors
-import com.selawi.cockpit.core.design.SectionLabel
 import com.selawi.cockpit.core.design.Space
 import java.util.Locale
 
-private const val GAUGE_MAX_KMH = 180f
-private const val SWEEP = 260f
-private const val START = 140f
-
-/** Speed arc from GPS. Parked, it rests at zero and shows P. */
+/**
+ * The left panel: driving status, speed, the 3D car and today's trip. A gradient floor instead of a
+ * card, so the car stands in open space.
+ */
 @Composable
-fun SpeedCard(state: DrivingState, modifier: Modifier = Modifier) {
-    val fraction by animateFloatAsState((state.speedKmh / GAUGE_MAX_KMH).coerceIn(0f, 1f), tween(700), label = "speed")
-    val accent = CockpitColors.Accent
-    val track = CockpitColors.SurfaceHigh
-    CockpitCard(modifier, padding = Space.m) {
-        SectionLabel("Speed")
-        Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
-            Canvas(Modifier.fillMaxSize().aspectRatio(1f, matchHeightConstraintsFirst = true)) {
-                val stroke = size.minDimension * 0.07f
-                val inset = stroke / 2 + 4f
-                val arcSize = Size(size.minDimension - inset * 2, size.minDimension - inset * 2)
-                val topLeft = Offset((size.width - arcSize.width) / 2, (size.height - arcSize.height) / 2)
-                drawArc(track, START, SWEEP, false, topLeft, arcSize, style = Stroke(stroke, cap = StrokeCap.Round))
-                if (fraction > 0.002f) {
-                    drawArc(
-                        Brush.sweepGradient(listOf(accent.copy(alpha = 0.4f), accent, accent), center),
-                        START, SWEEP * fraction, false, topLeft, arcSize,
-                        style = Stroke(stroke, cap = StrokeCap.Round),
-                    )
-                }
-            }
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, carHeight: androidx.compose.ui.unit.Dp? = null) {
+    val speed by animateIntAsState(state.speedKmh, tween(600), label = "speed")
+    Column(
+        modifier
+            .background(Brush.verticalGradient(listOf(CockpitColors.PanelTop, CockpitColors.PanelBottom)))
+            .padding(start = 32.dp, end = 32.dp, top = 28.dp, bottom = 24.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(
+                if (state.driving) "DRIVING" else "PARKED",
+                style = MaterialTheme.typography.labelMedium,
+                color = if (state.driving) CockpitColors.Accent else CockpitColors.TextSecondary,
+            )
+            state.headingDeg?.let { heading ->
+                Box(Modifier.size(4.dp).clip(CircleShape).background(CockpitColors.TextTertiary))
                 Text(
-                    if (state.driving || state.speedKmh > 0) "${state.speedKmh}" else "P",
-                    style = MaterialTheme.typography.displayLarge.copy(fontSize = 72.sp),
-                    color = CockpitColors.TextPrimary,
+                    (if (state.driving) "Heading " else "Facing ") + compassPoint(heading),
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = MaterialTheme.typography.labelMedium.fontSize),
+                    color = CockpitColors.TextSecondary,
                 )
-                Text("km/h", style = MaterialTheme.typography.labelMedium, color = CockpitColors.TextSecondary)
             }
         }
-    }
-}
-
-/** Distance, time and speeds since the trip began. */
-@Composable
-fun TripCard(trip: Trip, modifier: Modifier = Modifier) {
-    CockpitCard(modifier, padding = Space.m) {
-        SectionLabel("Trip")
-        Spacer(Modifier.height(Space.s))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Stat(String.format(Locale.US, "%.1f", trip.distanceKm), "km")
-            Stat(duration(trip.movingSeconds), "driving")
+        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 6.dp)) {
+            Text("$speed", style = MaterialTheme.typography.displayLarge, color = CockpitColors.TextPrimary)
+            Text(
+                "km/h",
+                style = MaterialTheme.typography.titleMedium,
+                color = CockpitColors.TextSecondary,
+                modifier = Modifier.padding(start = 10.dp, bottom = 14.dp),
+            )
         }
-        Spacer(Modifier.height(Space.s))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            Stat("${trip.averageKmh}", "avg km/h")
-            Stat("${trip.maxKmh}", "top km/h")
+        val carModifier = if (carHeight != null) Modifier.fillMaxWidth().height(carHeight) else Modifier.fillMaxWidth().weight(1f)
+        Car3D(state, carModifier)
+        Spacer(Modifier.height(Space.m))
+        Box(Modifier.fillMaxWidth().height(1.dp).background(CockpitColors.Stroke))
+        Spacer(Modifier.height(Space.m))
+        val trip = state.trip
+        Row(Modifier.fillMaxWidth()) {
+            TripStat(String.format(Locale.US, "%.1f", trip.distanceKm), "km today", Modifier.weight(1f))
+            TripStat(minutes(trip.movingSeconds), "driving", Modifier.weight(1f))
+            TripStat("${trip.averageKmh}", "avg km/h", Modifier.weight(1f))
+            TripStat("${trip.maxKmh}", "top km/h", Modifier.weight(1f))
         }
     }
 }
 
 @Composable
-private fun Stat(value: String, label: String) {
-    Column {
-        Text(value, style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Normal), color = CockpitColors.TextPrimary)
-        Text(label, style = MaterialTheme.typography.labelMedium, color = CockpitColors.TextTertiary)
+private fun TripStat(value: String, label: String, modifier: Modifier) {
+    Column(modifier) {
+        Text(value, style = MaterialTheme.typography.headlineMedium, color = CockpitColors.TextPrimary)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = CockpitColors.TextSecondary)
     }
 }
 
-private fun duration(seconds: Long): String {
+private fun minutes(seconds: Long): String {
     val h = seconds / 3600
     val m = (seconds % 3600) / 60
-    return if (h > 0) "${h}h ${m}m" else "${m} min"
+    return if (h > 0) "${h}h ${m}m" else "${m}m"
 }
 
 /** N, NE, E… from a heading in degrees. */

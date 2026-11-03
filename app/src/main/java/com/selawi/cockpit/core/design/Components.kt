@@ -20,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
@@ -35,20 +36,19 @@ fun CockpitCard(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val shape = RoundedCornerShape(Space.cardRadius)
-    // Glass panel: translucent fill over the background glow, with a hairline edge lit from above.
+    // Day: crisp white card on a soft shadow. Night: translucent glass with a hairline edge.
     Column(
         modifier
+            .let {
+                if (CockpitColors.isDark) it else it.shadow(
+                    10.dp, shape,
+                    ambientColor = androidx.compose.ui.graphics.Color(0x1A111418),
+                    spotColor = androidx.compose.ui.graphics.Color(0x1A111418),
+                )
+            }
             .clip(shape)
             .background(CockpitColors.Surface)
-            .border(
-                BorderStroke(
-                    1.dp,
-                    androidx.compose.ui.graphics.Brush.verticalGradient(
-                        listOf(CockpitColors.Stroke, CockpitColors.Stroke.copy(alpha = 0.05f)),
-                    ),
-                ),
-                shape,
-            )
+            .let { if (CockpitColors.isDark) it.border(BorderStroke(1.dp, CockpitColors.Stroke), shape) else it }
             .let { if (onClick != null) it.clickable(onClick = onClick) else it }
             .padding(padding),
         content = content,
@@ -80,14 +80,14 @@ fun RoundIconButton(
         modifier
             .size(size)
             .clip(CircleShape)
-            .background(if (primary) CockpitColors.Accent else CockpitColors.SurfaceHigh)
+            .background(if (primary) CockpitColors.Inverse else CockpitColors.SurfaceHigh)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center,
     ) {
         Icon(
             icon,
             contentDescription = contentDescription,
-            tint = if (primary) CockpitColors.OnAccent else CockpitColors.TextPrimary,
+            tint = if (primary) CockpitColors.OnInverse else CockpitColors.TextPrimary,
             modifier = Modifier.size(size * 0.45f),
         )
     }
@@ -106,13 +106,13 @@ fun PillButton(
         modifier
             .heightIn(min = Space.touch)
             .clip(RoundedCornerShape(Space.touch / 2))
-            .background(if (primary) CockpitColors.Accent else CockpitColors.SurfaceHigh)
+            .background(if (primary) CockpitColors.Inverse else CockpitColors.SurfaceHigh)
             .clickable(onClick = onClick)
             .padding(horizontal = Space.l),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.s, Alignment.CenterHorizontally),
     ) {
-        val tint = if (primary) CockpitColors.OnAccent else CockpitColors.TextPrimary
+        val tint = if (primary) CockpitColors.OnInverse else CockpitColors.TextPrimary
         if (icon != null) Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
         Text(text, style = MaterialTheme.typography.labelLarge, color = tint)
     }

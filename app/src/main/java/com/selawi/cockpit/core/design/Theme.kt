@@ -19,17 +19,21 @@ import com.selawi.cockpit.R
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-/** One full set of colours. The cockpit has a night set and a day set. */
+/** One full set of colours. The dashboard has a night set and a day set. */
 class Palette(
     val dark: Boolean,
     val background: Color,
     val backgroundGlow: Color,
+    val panelTop: Color,
+    val panelBottom: Color,
     val surface: Color,
     val surfaceHigh: Color,
     val stroke: Color,
     val accent: Color,
     val accentDim: Color,
     val onAccent: Color,
+    val inverse: Color,
+    val onInverse: Color,
     val textPrimary: Color,
     val textSecondary: Color,
     val textTertiary: Color,
@@ -38,39 +42,47 @@ class Palette(
 
 val NightPalette = Palette(
     dark = true,
-    background = Color(0xFF040608),
-    backgroundGlow = Color(0xFF0A2230),
-    surface = Color(0xCC10161E),
-    surfaceHigh = Color(0xFF1A232E),
-    stroke = Color(0x33FFFFFF),
-    accent = Color(0xFF3DDCFF),
-    accentDim = Color(0xFF16485A),
-    onAccent = Color(0xFF031015),
-    textPrimary = Color(0xFFF2F5F8),
-    textSecondary = Color(0xFF8B98A8),
-    textTertiary = Color(0xFF566373),
+    background = Color(0xFF0B0C0E),
+    backgroundGlow = Color(0xFF15192A),
+    panelTop = Color(0xFF121417),
+    panelBottom = Color(0xFF0A0B0D),
+    surface = Color(0x0DFFFFFF),
+    surfaceHigh = Color(0x17FFFFFF),
+    stroke = Color(0x17FFFFFF),
+    accent = Color(0xFF5B8CFF),
+    accentDim = Color(0xFF1E2C55),
+    onAccent = Color(0xFF0B0C0E),
+    inverse = Color(0xFFF2F3F5),
+    onInverse = Color(0xFF0B0C0E),
+    textPrimary = Color(0xFFF2F3F5),
+    textSecondary = Color(0xFFA1A7B0),
+    textTertiary = Color(0xFF6E7580),
     warning = Color(0xFFFFB74D),
 )
 
 val DayPalette = Palette(
     dark = false,
-    background = Color(0xFFE6EBF0),
-    backgroundGlow = Color(0xFFCDE8F4),
-    surface = Color(0xD9FFFFFF),
-    surfaceHigh = Color(0xFFE4EAF0),
-    stroke = Color(0x1A0D141B),
-    accent = Color(0xFF0088B8),
-    accentDim = Color(0xFFBFE6F4),
+    background = Color(0xFFF3F4F6),
+    backgroundGlow = Color(0xFFE7ECF7),
+    panelTop = Color(0xFFFAFAFB),
+    panelBottom = Color(0xFFE2E5E9),
+    surface = Color(0xFFFFFFFF),
+    surfaceHigh = Color(0xFFF0F1F3),
+    stroke = Color(0xFFE5E7EB),
+    accent = Color(0xFF2F6BFF),
+    accentDim = Color(0xFFDCE6FF),
     onAccent = Color(0xFFFFFFFF),
-    textPrimary = Color(0xFF0D141B),
-    textSecondary = Color(0xFF52606E),
-    textTertiary = Color(0xFF8A96A3),
-    warning = Color(0xFFB86E00),
+    inverse = Color(0xFF111418),
+    onInverse = Color(0xFFFFFFFF),
+    textPrimary = Color(0xFF111418),
+    textSecondary = Color(0xFF4B5563),
+    textTertiary = Color(0xFF6B7280),
+    warning = Color(0xFFB45309),
 )
 
 /**
  * Colour tokens for the current theme. Reading them in a composable or a drawing block
- * subscribes to theme changes, so the whole cockpit switches at sunrise and sunset.
+ * subscribes to theme changes, so the whole dashboard switches at sunrise and sunset.
  */
 object CockpitColors {
     internal var palette by mutableStateOf(NightPalette)
@@ -78,12 +90,17 @@ object CockpitColors {
     val isDark get() = palette.dark
     val Background get() = palette.background
     val BackgroundGlow get() = palette.backgroundGlow
+    val PanelTop get() = palette.panelTop
+    val PanelBottom get() = palette.panelBottom
     val Surface get() = palette.surface
     val SurfaceHigh get() = palette.surfaceHigh
     val Stroke get() = palette.stroke
     val Accent get() = palette.accent
     val AccentDim get() = palette.accentDim
     val OnAccent get() = palette.onAccent
+    /** Primary buttons: near-black by day, near-white at night. */
+    val Inverse get() = palette.inverse
+    val OnInverse get() = palette.onInverse
     val TextPrimary get() = palette.textPrimary
     val TextSecondary get() = palette.textSecondary
     val TextTertiary get() = palette.textTertiary
@@ -97,7 +114,7 @@ object Space {
     val m = 16.dp
     val l = 24.dp
     val xl = 32.dp
-    val cardRadius = 28.dp
+    val cardRadius = 20.dp
     val touch = 64.dp
 }
 
@@ -118,16 +135,17 @@ val TextFont = FontFamily(
 )
 
 private val typography = Typography(
-    displayLarge = TextStyle(fontFamily = DisplayFont, fontSize = 112.sp, fontWeight = FontWeight.Light, letterSpacing = (-4).sp),
-    displayMedium = TextStyle(fontFamily = DisplayFont, fontSize = 64.sp, fontWeight = FontWeight.Light, letterSpacing = (-2).sp),
-    displaySmall = TextStyle(fontFamily = DisplayFont, fontSize = 44.sp, fontWeight = FontWeight.Normal, letterSpacing = (-1).sp),
-    headlineMedium = TextStyle(fontFamily = DisplayFont, fontSize = 30.sp, fontWeight = FontWeight.Medium),
-    titleLarge = TextStyle(fontFamily = TextFont, fontSize = 24.sp, fontWeight = FontWeight.SemiBold),
-    titleMedium = TextStyle(fontFamily = TextFont, fontSize = 19.sp, fontWeight = FontWeight.Medium),
+    displayLarge = TextStyle(fontFamily = DisplayFont, fontSize = 96.sp, fontWeight = FontWeight.Light, letterSpacing = (-4).sp, lineHeight = 96.sp),
+    displayMedium = TextStyle(fontFamily = DisplayFont, fontSize = 44.sp, fontWeight = FontWeight.Light, letterSpacing = (-1).sp),
+    displaySmall = TextStyle(fontFamily = DisplayFont, fontSize = 28.sp, fontWeight = FontWeight.Normal),
+    headlineMedium = TextStyle(fontFamily = DisplayFont, fontSize = 24.sp, fontWeight = FontWeight.Normal),
+    titleLarge = TextStyle(fontFamily = TextFont, fontSize = 30.sp, fontWeight = FontWeight.SemiBold, letterSpacing = (-0.5).sp),
+    titleMedium = TextStyle(fontFamily = TextFont, fontSize = 18.sp, fontWeight = FontWeight.Medium),
     bodyLarge = TextStyle(fontFamily = TextFont, fontSize = 18.sp),
     bodyMedium = TextStyle(fontFamily = TextFont, fontSize = 16.sp),
     labelLarge = TextStyle(fontFamily = TextFont, fontSize = 16.sp, fontWeight = FontWeight.SemiBold, letterSpacing = 0.3.sp),
     labelMedium = TextStyle(fontFamily = DisplayFont, fontSize = 13.sp, fontWeight = FontWeight.Medium, letterSpacing = 1.6.sp),
+    labelSmall = TextStyle(fontFamily = TextFont, fontSize = 12.sp),
 )
 
 /** Night or day theme. [dark] is decided by the caller from the time of day or the driver's choice. */

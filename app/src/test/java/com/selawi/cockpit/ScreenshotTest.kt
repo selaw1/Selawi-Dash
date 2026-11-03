@@ -135,8 +135,8 @@ class ScreenshotTest {
     // Lazy: bitmaps can only be made once Paparazzi has started its renderer.
     private val playing by lazy {
         NowPlaying(
-        title = "Blinding Lights",
-        artist = "The Weeknd",
+        title = "Song title",
+        artist = "Artist name",
         packageName = "com.spotify.music",
         isPlaying = true,
         art = artwork(),

@@ -105,6 +105,11 @@ class CarControl {
     internal var flingDegreesPerSecond = 0f
     internal var resetRequested = false
 
+    /** 0 parked … 1 driving, eased by the UI; moves the camera and the car together. */
+    var drive = 0f
+    /** -1 (left) … 1 (right): how sharply the road is curving, from GPS heading. */
+    var steer = 0f
+
     /** The driver dragged the car round by this many degrees. */
     fun drag(degrees: Float) {
         pendingDegrees += degrees
@@ -150,6 +155,8 @@ private class CarRenderer(
     private val baseRoot = FloatArray(16)
     private val wheels = mutableListOf<Wheel>()
     private var yawDeg = FRONT_YAW
+    private var aspect = 1.6
+    private var clock = 0f
     private var userYaw = FRONT_YAW
     private var resetting = false
     private var wheelAngle = 0f
@@ -157,7 +164,7 @@ private class CarRenderer(
     private var running = false
     private var destroyed = false
 
-    private class Wheel(val instance: Int, val base: FloatArray, val pivot: FloatArray)
+    private class Wheel(val instance: Int, val base: FloatArray, val pivot: FloatArray, val front: Boolean)
 
     private val frameCallback = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
@@ -229,7 +236,7 @@ private class CarRenderer(
             }
         }
         uiHelper.attachTo(textureView)
-        frame(1.6)
+        frame(aspect)
     }
 
     fun load(bytes: ByteArray) {
@@ -298,6 +305,9 @@ private class CarRenderer(
 
     private fun animate(dt: Float, speedKmh: Int, driving: Boolean) {
         val loaded = asset ?: return
+        clock += dt
+        val drive = CarScene.smooth(control.drive.coerceIn(0f, 1f))
+
         // Parked: wherever the driver turned it, with a little momentum after a flick.
         userYaw += control.pendingDegrees
         control.pendingDegrees = 0f
@@ -307,38 +317,41 @@ private class CarRenderer(
         } else {
             control.flingDegreesPerSecond = 0f
         }
-        var easing = 14f
         if (control.resetRequested) {
             control.resetRequested = false
-            // Turn back the short way round.
             userYaw = yawDeg + (((FRONT_YAW - yawDeg) % 360f + 540f) % 360f - 180f)
             resetting = true
         }
-        if (resetting) easing = 3f
-        // Driving: chase view from behind; the driver's angle comes back when the car stops.
-        val target = if (driving) 180f else userYaw
-        if (driving) easing = 2.2f
-        var diff = ((target - yawDeg) % 360f + 540f) % 360f - 180f
-        if (!driving) diff = target - yawDeg
-        if (abs(diff) < 0.05f) {
-            diff = 0f
-            resetting = false
-        }
-        yawDeg += diff * min(1f, dt * easing)
+        val diff = userYaw - yawDeg
+        yawDeg += diff * min(1f, dt * if (resetting) 3f else 14f)
+        if (abs(diff) < 0.05f) resetting = false
+
+        // Driving: the car turns to face down the road (away from the camera) as the camera swings
+        // behind it; both follow the same eased drive value, so the change is one smooth move.
+        val toRoad = (((180f - yawDeg) % 360f + 540f) % 360f) - 180f
+        val yaw = yawDeg + toRoad * drive
+        val speedFactor = min(1f, speedKmh / 70f)
+        val bob = (kotlin.math.sin(clock * 10.5f) * 0.0025f + kotlin.math.sin(clock * 3.1f) * 0.0018f) * speedFactor * drive
+        val steer = control.steer.coerceIn(-1f, 1f) * drive
         val root = FloatArray(16)
-        Matrix.setRotateM(root, 0, yawDeg, 0f, 1f, 0f)
+        Matrix.setRotateM(root, 0, yaw, 0f, 1f, 0f)
+        Matrix.translateM(root, 0, 0f, bob, 0f)
+        // Lean out of the bend, as a real car does.
+        Matrix.rotateM(root, 0, steer * 2.2f, 0f, 0f, 1f)
         val world = FloatArray(16)
         Matrix.multiplyMM(world, 0, root, 0, baseRoot, 0)
         val tm = engine.transformManager
         tm.setTransform(tm.getInstance(loaded.root), world)
+        placeCamera()
 
-        // Wheel speed from road speed, capped so it never strobes at 60 frames a second.
-        val radPerSec = min(speedKmh / 3.6f / WHEEL_RADIUS_M, 24f)
+        // Wheels roll with road speed (capped so they never strobe) and the front ones steer.
+        val radPerSec = min(speedKmh / 3.6f / WHEEL_RADIUS_M, 26f)
         wheelAngle = (wheelAngle + radPerSec * dt) % (2f * PI.toFloat())
         val degrees = Math.toDegrees(wheelAngle.toDouble()).toFloat()
         for (w in wheels) {
             val m = w.base.copyOf()
             Matrix.translateM(m, 0, w.pivot[0], w.pivot[1], w.pivot[2])
+            if (w.front) Matrix.rotateM(m, 0, -steer * 16f, 0f, 0f, 1f)
             Matrix.rotateM(m, 0, -degrees, 1f, 0f, 0f)
             Matrix.translateM(m, 0, -w.pivot[0], -w.pivot[1], -w.pivot[2])
             tm.setTransform(w.instance, m)
@@ -354,8 +367,8 @@ private class CarRenderer(
         Matrix.setIdentityM(baseRoot, 0)
         Matrix.scaleM(baseRoot, 0, scale, scale, scale)
         val c = box.center
-        // Sit the car on the ground line rather than floating at its centre.
-        Matrix.translateM(baseRoot, 0, -c[0], -c[1] + half[1] * 0.15f, -c[2])
+        // Wheels on the ground (y = 0), so the car sits on the road drawn behind it.
+        Matrix.translateM(baseRoot, 0, -c[0], -c[1] + half[1], -c[2])
     }
 
     /** The bundled model carries Khronos logos on its plate and steering wheel; hide those parts. */
@@ -401,7 +414,7 @@ private class CarRenderer(
             }
             if (!found) continue
             val pivot = FloatArray(3) { (min[it] + max[it]) / 2f }
-            wheels += Wheel(instance, tm.getTransform(instance, FloatArray(16)), pivot)
+            wheels += Wheel(instance, tm.getTransform(instance, FloatArray(16)), pivot, name.contains("Front"))
         }
     }
 
@@ -410,12 +423,15 @@ private class CarRenderer(
      * units long after [fitToUnitSize]; at a three-quarter angle it spans about 2.2 units.
      */
     private fun frame(aspect: Double) {
-        val vFov = 30.0
-        camera.setProjection(vFov, aspect, 0.05, 50.0, Camera.Fov.VERTICAL)
-        val tanV = kotlin.math.tan(Math.toRadians(vFov / 2))
-        val tanH = tanV * aspect
-        val distance = maxOf(1.3 / tanH, 0.75 / tanV) + 1.0
-        camera.lookAt(0.0, distance * 0.22, distance, 0.0, 0.05, 0.0, 0.0, 1.0, 0.0)
+        this.aspect = aspect
+        camera.setProjection(CarScene.V_FOV_DEG, aspect, 0.05, 80.0, Camera.Fov.VERTICAL)
+        placeCamera()
+    }
+
+    /** Same camera the road behind the car is drawn with. */
+    private fun placeCamera() {
+        val v = CarScene.view(aspect, control.drive)
+        camera.lookAt(v.eye[0], v.eye[1], v.eye[2], v.target[0], v.target[1], v.target[2], 0.0, 1.0, 0.0)
     }
 
     /** The bundled tyres carry Khronos lettering on the sidewall; paint the sidewall plain. */
