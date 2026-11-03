@@ -14,7 +14,7 @@ the phone's music). Selawi Dash is the display on the centre screen.
   phone over Bluetooth / Android Auto. Covers are looked up online when the player sends none.
 - **Calls:** a card while a call rings or runs, with a button to the car's phone app.
 - **Time and weather:** current conditions, the next six hours, sunrise and sunset (Open-Meteo).
-- **Dock:** pinned apps, the assistant (placeholder) and all apps.
+- **Dock:** home and all apps on the left, pinned apps in the middle, settings on the right.
 - **Settings:** automatic day/night theme, accent colour wheel, full screen, keep screen on, a
   custom 3D car model, and a problem report.
 
@@ -52,7 +52,6 @@ Use a private key before sharing the app with anyone.
 | `features/weather` | Forecast and weather drawing |
 | `features/apps` | App list and pinned shortcuts |
 | `features/settings` | Settings screen and accent colour picker |
-| `features/assistant` | Assistant placeholder |
 
 Car facts the code relies on are in [docs/CAR.md](docs/CAR.md).
 

@@ -18,7 +18,6 @@ import com.android.resources.ScreenOrientation
 import com.selawi.cockpit.core.design.CockpitTheme
 import com.selawi.cockpit.features.apps.AppInfo
 import com.selawi.cockpit.features.apps.AppsScreen
-import com.selawi.cockpit.features.assistant.AssistantScreen
 import com.selawi.cockpit.features.dashboard.DashboardScreen
 import com.selawi.cockpit.features.dashboard.DashboardState
 import com.selawi.cockpit.features.calls.CallInfo
@@ -87,9 +86,6 @@ class ScreenshotTest {
     fun appsDay() = shot(Destination.Apps, dark = false) {
         AppsScreen(apps = allApps, pinned = allApps.take(5), onOpen = {}, onTogglePin = {}, onCarHome = {})
     }
-
-    @Test
-    fun assistant() = shot(Destination.Assistant) { AssistantScreen() }
 
     @Test
     fun settings() = shot(Destination.Settings) {

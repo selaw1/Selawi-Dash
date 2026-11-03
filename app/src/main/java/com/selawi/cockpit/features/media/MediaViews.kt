@@ -85,7 +85,9 @@ fun MediaCard(
     val context = LocalContext.current
     val tint = rememberCoverTint(playing)
     CockpitCard(modifier, padding = Space.l) {
-        Row(Modifier.fillMaxWidth().weight(1f, fill = !compact), horizontalArrangement = Arrangement.spacedBy(28.dp)) {
+        // Full layout: fill the card's height. Compact: size to the content, so it never collapses to nothing.
+        val rowModifier = if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxWidth().weight(1f)
+        Row(rowModifier, horizontalArrangement = Arrangement.spacedBy(if (compact) 16.dp else 28.dp)) {
             val coverModifier = Modifier.size(if (compact) 120.dp else 260.dp)
             Artwork(playing.art, coverModifier.align(Alignment.CenterVertically), tint)
             Column(Modifier.weight(1f).align(Alignment.CenterVertically)) {

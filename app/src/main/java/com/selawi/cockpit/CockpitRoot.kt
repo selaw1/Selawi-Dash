@@ -56,7 +56,6 @@ import com.selawi.cockpit.core.platform.tryStart
 import com.selawi.cockpit.data.local.ThemeMode
 import com.selawi.cockpit.features.apps.AppInfo
 import com.selawi.cockpit.features.apps.AppsScreen
-import com.selawi.cockpit.features.assistant.AssistantScreen
 import com.selawi.cockpit.features.dashboard.DashboardScreen
 import com.selawi.cockpit.features.dashboard.DashboardState
 import com.selawi.cockpit.features.media.MediaControls
@@ -72,7 +71,6 @@ import java.time.LocalTime
 enum class Destination(val label: String, val icon: ImageVector) {
     Home("Home", Icons.Filled.Home),
     Apps("Apps", CockpitIcons.Apps),
-    Assistant("Assistant", CockpitIcons.Mic),
     Settings("Settings", Icons.Filled.Settings),
 }
 
@@ -162,7 +160,6 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                             onCarHome = { activity.openCarHome() },
                         )
                     }
-                    Destination.Assistant -> Box(Modifier.padding(Space.l)) { AssistantScreen() }
                     Destination.Settings -> Box(Modifier.padding(Space.l)) { SettingsScreen(
                         state = SettingsState(fullScreen, keepOn, themeMode, crash, accent, coverStatus),
                         actions = SettingsActions(
@@ -221,7 +218,7 @@ fun DashFrame(
     }
 }
 
-/** Home on the left; pinned apps, the assistant and all apps in the middle; settings on the right. */
+/** Home and all apps on the left; pinned apps in the middle; settings on the right. */
 @Composable
 private fun Dock(
     selected: Destination,
@@ -241,7 +238,11 @@ private fun Dock(
                 .padding(horizontal = Space.l),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            DockButton(Destination.Home.icon, "Home", selected == Destination.Home) { onSelect(Destination.Home) }
+            // Home and all apps on the left; pinned shortcuts in the middle; settings on the right.
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                DockButton(Destination.Home.icon, "Home", selected == Destination.Home) { onSelect(Destination.Home) }
+                DockButton(Destination.Apps.icon, "All apps", selected == Destination.Apps) { onSelect(Destination.Apps) }
+            }
             Row(
                 Modifier.weight(1f),
                 horizontalArrangement = Arrangement.spacedBy(12.dp, Alignment.CenterHorizontally),
@@ -258,18 +259,6 @@ private fun Dock(
                         appInfo.icon?.let { Image(it, contentDescription = appInfo.label, modifier = Modifier.size(52.dp)) }
                     }
                 }
-                Box(
-                    Modifier
-                        .padding(horizontal = 8.dp)
-                        .size(width = 64.dp, height = 56.dp)
-                        .clip(RoundedCornerShape(28.dp))
-                        .background(CockpitColors.Accent)
-                        .clickable { onSelect(Destination.Assistant) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(CockpitIcons.Mic, contentDescription = "Assistant", tint = CockpitColors.OnAccent, modifier = Modifier.size(26.dp))
-                }
-                DockButton(CockpitIcons.Apps, "All apps", selected == Destination.Apps) { onSelect(Destination.Apps) }
             }
             DockButton(Destination.Settings.icon, "Settings", selected == Destination.Settings) { onSelect(Destination.Settings) }
         }

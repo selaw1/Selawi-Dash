@@ -19,8 +19,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -102,17 +100,21 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
     }
 }
 
-/** A narrow window (for example in the car's split screen): one scrolling column. */
+/**
+ * A narrow window, as in the car's split screen: the car panel fills the top and the music card
+ * always stays visible at the bottom. Time and weather are left to the car's own status bar,
+ * which split screen shows anyway.
+ */
 @Composable
 private fun CompactDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit) {
-    val is24 = DateFormat.is24HourFormat(LocalContext.current)
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
-        VehiclePanel(state.driving, Modifier.fillMaxWidth(), carHeight = 240.dp)
-        Column(Modifier.padding(Space.l), verticalArrangement = Arrangement.spacedBy(Space.m)) {
-            Header(state, Modifier.fillMaxWidth())
+    Column(Modifier.fillMaxSize().coverWash(state.playing)) {
+        VehiclePanel(state.driving, Modifier.fillMaxWidth().weight(1f))
+        Column(
+            Modifier.padding(start = Space.l, end = Space.l, bottom = Space.m),
+            verticalArrangement = Arrangement.spacedBy(Space.m),
+        ) {
             CallSlot(state.call, onOpenPhone)
             MediaCard(state.playing, controls, Modifier.fillMaxWidth(), compact = true)
-            ForecastStrip(state.weather, Modifier.fillMaxWidth(), is24)
         }
     }
 }
