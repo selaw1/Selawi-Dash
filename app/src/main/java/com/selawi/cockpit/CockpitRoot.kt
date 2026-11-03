@@ -266,11 +266,11 @@ private fun Dock(
                         .padding(horizontal = 8.dp)
                         .size(width = 64.dp, height = 56.dp)
                         .clip(RoundedCornerShape(28.dp))
-                        .background(CockpitColors.Inverse)
+                        .background(CockpitColors.Accent)
                         .clickable { onSelect(Destination.Assistant) },
                     contentAlignment = Alignment.Center,
                 ) {
-                    Icon(CockpitIcons.Mic, contentDescription = "Assistant", tint = CockpitColors.OnInverse, modifier = Modifier.size(26.dp))
+                    Icon(CockpitIcons.Mic, contentDescription = "Assistant", tint = CockpitColors.OnAccent, modifier = Modifier.size(26.dp))
                 }
                 DockButton(CockpitIcons.Apps, "All apps", selected == Destination.Apps) { onSelect(Destination.Apps) }
             }
