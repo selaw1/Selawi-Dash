@@ -9,8 +9,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.MaterialTheme
@@ -26,44 +24,10 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.selawi.cockpit.core.design.CockpitCard
 import com.selawi.cockpit.core.design.CockpitColors
-import com.selawi.cockpit.core.design.SectionLabel
-import com.selawi.cockpit.core.design.Space
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.cos
 import kotlin.math.sin
-
-/** The next six hours, plus sunrise and sunset. */
-@Composable
-fun WeatherCard(weather: Weather?, modifier: Modifier = Modifier, is24h: Boolean = false) {
-    CockpitCard(modifier, padding = Space.m) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            SectionLabel("Next hours", Modifier.weight(1f))
-            weather?.let { w ->
-                val fmt = DateTimeFormatter.ofPattern(if (is24h) "HH:mm" else "h:mm a")
-                Text(
-                    listOfNotNull(w.sunrise?.let { "↑ " + it.format(fmt) }, w.sunset?.let { "↓ " + it.format(fmt) }).joinToString("   "),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = CockpitColors.TextSecondary,
-                )
-            }
-        }
-        Spacer(Modifier.height(Space.s))
-        if (weather == null || weather.hours.isEmpty()) {
-            Text("Forecast loading…", style = MaterialTheme.typography.bodyMedium, color = CockpitColors.TextTertiary)
-            return@CockpitCard
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-            weather.hours.forEach { hour ->
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(hourLabel(hour.time, is24h), style = MaterialTheme.typography.labelMedium, color = CockpitColors.TextTertiary)
-                    SkyIcon(hour.sky, hour.isDay, Modifier.size(30.dp))
-                    Text("${hour.temperature}°", style = MaterialTheme.typography.titleMedium, color = CockpitColors.TextPrimary)
-                }
-            }
-        }
-    }
-}
 
 private fun hourLabel(t: LocalTime, is24h: Boolean): String =
     if (is24h) t.format(DateTimeFormatter.ofPattern("HH")) else t.format(DateTimeFormatter.ofPattern("ha")).lowercase()

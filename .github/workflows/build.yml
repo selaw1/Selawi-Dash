@@ -1,14 +1,13 @@
-name: Build APKs
+name: Build Selawi Dash
 
 on:
   push:
     paths:
       - "app/**"
-      - "probe/**"
       - "gradle/**"
       - "*.gradle.kts"
       - "gradle.properties"
-      - ".github/workflows/probe.yml"
+      - ".github/workflows/build.yml"
   workflow_dispatch:
 
 permissions:
@@ -31,14 +30,11 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build cockpit and probe
-        env:
-          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+      - name: Build Selawi Dash
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug :probe:assembleDebug --stacktrace
+          ./gradlew :app:assembleDebug --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk selawi-dash.apk
-          cp probe/build/outputs/apk/debug/probe-debug.apk cockpit-probe.apk
 
       - name: Render screenshots
         run: ./gradlew :app:recordPaparazziDebug --stacktrace
@@ -53,11 +49,9 @@ jobs:
           name: apks
           path: |
             selawi-dash.apk
-            cockpit-probe.apk
 
       # Fixed download links for the car's browser:
       # .../releases/download/cockpit-latest/selawi-dash.apk
-      # .../releases/download/probe-latest/cockpit-probe.apk
       - name: Publish releases
         env:
           GH_TOKEN: ${{ github.token }}
@@ -68,6 +62,5 @@ jobs:
               --notes "Built from ${GITHUB_REF_NAME} at ${GITHUB_SHA::7}. Install on the head unit through Chrome."
           }
           publish cockpit-latest selawi-dash.apk "Selawi Dash (latest test build)"
-          publish probe-latest cockpit-probe.apk "Cockpit Probe (latest test build)"
           (cd app/src/test/snapshots/images && zip -q ../../../../../cockpit-screenshots.zip *.png)
           publish screenshots-latest cockpit-screenshots.zip "Cockpit screenshots (latest build)"

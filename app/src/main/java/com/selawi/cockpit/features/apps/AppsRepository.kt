@@ -71,8 +71,6 @@ class AppsRepository(
         scope.launch { _apps.value = withContext(Dispatchers.IO) { load() } }
     }
 
-    fun isPinned(app: AppInfo): Boolean = pinned.value.any { it.key == app.key }
-
     fun togglePinned(app: AppInfo) {
         scope.launch {
             val current = settings.pinnedApps.first() ?: pinned.value.map { it.key }

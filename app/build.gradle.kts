@@ -22,10 +22,10 @@ android {
     }
 
     signingConfigs {
-        // Test key shared with the probe so every test build installs over the previous one.
-        // A private key replaces it before any public release.
+        // Fixed test key, so every build installs over the previous one and keeps the driver's
+        // settings. A private key replaces it before any public release.
         getByName("debug") {
-            storeFile = file("../probe/keystore/probe-debug.jks")
+            storeFile = file("../keystore/debug.jks")
             storePassword = "android"
             keyAlias = "probe"
             keyPassword = "android"

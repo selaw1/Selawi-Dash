@@ -72,12 +72,7 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
     private val _nowPlaying = MutableStateFlow(NowPlaying())
     val nowPlaying: StateFlow<NowPlaying> = _nowPlaying
 
-    private val _sessionAccess = MutableStateFlow(false)
-    val sessionAccess: StateFlow<Boolean> = _sessionAccess
 
-    private val _browserApps = MutableStateFlow<List<String>>(emptyList())
-    /** Apps that let the cockpit read their player directly (no permission needed). */
-    val browserApps: StateFlow<List<String>> = _browserApps
 
     private var controller: MediaController? = null
     private val browsers = mutableMapOf<String, MediaBrowser>()
@@ -164,7 +159,6 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
 
     private fun pollSessions() {
         val allowed = NotificationManagerCompat.getEnabledListenerPackages(context).contains(context.packageName)
-        _sessionAccess.value = allowed
         val controllers = if (allowed) {
             runCatching {
                 val msm = context.getSystemService(Context.MEDIA_SESSION_SERVICE) as MediaSessionManager
@@ -360,14 +354,12 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
                 override fun onConnected() {
                     runCatching {
                         browserControllers[pkg] = MediaController(context, browser.sessionToken)
-                        _browserApps.value = browserControllers.keys.toList()
                     }
                 }
 
                 override fun onConnectionSuspended() {
                     browserControllers.remove(pkg)
                     browsers.remove(pkg)
-                    _browserApps.value = browserControllers.keys.toList()
                 }
 
                 override fun onConnectionFailed() {

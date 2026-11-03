@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.sp
 class Palette(
     val dark: Boolean,
     val background: Color,
-    val backgroundGlow: Color,
     val panelTop: Color,
     val panelBottom: Color,
     val surface: Color,
@@ -44,7 +43,6 @@ class Palette(
 val NightPalette = Palette(
     dark = true,
     background = Color(0xFF0B0C0E),
-    backgroundGlow = Color(0xFF15192A),
     panelTop = Color(0xFF121417),
     panelBottom = Color(0xFF0A0B0D),
     surface = Color(0x0DFFFFFF),
@@ -64,7 +62,6 @@ val NightPalette = Palette(
 val DayPalette = Palette(
     dark = false,
     background = Color(0xFFF3F4F6),
-    backgroundGlow = Color(0xFFE7ECF7),
     panelTop = Color(0xFFFAFAFB),
     panelBottom = Color(0xFFE2E5E9),
     surface = Color(0xFFFFFFFF),
@@ -94,7 +91,6 @@ fun Palette.withAccent(chosen: Color): Palette {
     return Palette(
         dark = dark,
         background = background,
-        backgroundGlow = backgroundGlow,
         panelTop = panelTop,
         panelBottom = panelBottom,
         surface = surface,
@@ -121,7 +117,6 @@ object CockpitColors {
 
     val isDark get() = palette.dark
     val Background get() = palette.background
-    val BackgroundGlow get() = palette.backgroundGlow
     val PanelTop get() = palette.panelTop
     val PanelBottom get() = palette.panelBottom
     val Surface get() = palette.surface
@@ -141,7 +136,6 @@ object CockpitColors {
 
 /** Spacing and size tokens. Touch targets stay at least 64 dp for use in a moving car. */
 object Space {
-    val xs = 4.dp
     val s = 8.dp
     val m = 16.dp
     val l = 24.dp

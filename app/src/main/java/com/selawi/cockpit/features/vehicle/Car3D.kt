@@ -35,7 +35,6 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalInspectionMode
 import com.selawi.cockpit.core.design.CockpitColors
 import com.selawi.cockpit.core.design.Space
-import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.exp
 import kotlin.math.sin

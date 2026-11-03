@@ -1,35 +1,64 @@
-# Selawi Cockpit
+# Selawi Dash
 
-A native Android (Kotlin + Jetpack Compose) cockpit app for the BYD Seal 05 DM-i head unit
-(DiLink 5.0, Android 12): a full-screen, customizable dashboard with maps, media, app shortcuts
-and, later, an AI voice assistant. It is a normal app the driver opens. It does not replace or
-modify BYD's own software.
+A full-screen dashboard for the BYD Seal 05 DM-i head unit, written in Kotlin with Jetpack Compose.
+It is a normal app the driver opens; it does not replace or change BYD's software.
 
-## Download (log in to GitHub first; the repository is private)
+DiAuto does the heavy lifting (Android Auto, Google Maps on the instrument cluster, voice guidance,
+the phone's music). Selawi Dash is the display on the centre screen.
 
-- Cockpit: https://github.com/selaw1/Selawi-Dash/releases/download/cockpit-latest/selawi-cockpit.apk
-- Device probe: https://github.com/selaw1/Selawi-Dash/releases/download/probe-latest/cockpit-probe.apk
+## What it shows
 
-Every push rebuilds both through GitHub Actions; the links stay the same.
+- **Car panel:** driving status and heading, speed from GPS, a 3D car that turns under your finger
+  when parked and drives down an animated road when moving, and today's trip.
+- **Music:** song, artist, cover, progress and controls for whatever is playing, including the
+  phone over Bluetooth / Android Auto. Covers are looked up online when the player sends none.
+- **Calls:** a card while a call rings or runs, with a button to the car's phone app.
+- **Time and weather:** current conditions, the next six hours, sunrise and sunset (Open-Meteo).
+- **Dock:** pinned apps, the assistant (placeholder) and all apps.
+- **Settings:** automatic day/night theme, accent colour wheel, full screen, keep screen on, a
+  custom 3D car model, and a problem report.
 
-## Modules
+## Install
 
-- `app/`: the cockpit (`com.selawi.cockpit`). Features live under `features/` (dashboard, apps, media,
-  navigation, weather, assistant, settings); shared design tokens and components under `core/design`.
-- `probe/`: the Phase 0 device probe. Results are in [docs/PHASE0_REPORT.md](docs/PHASE0_REPORT.md).
+Log in to GitHub in the car's browser (the repository is private), then open:
 
-## Decisions so far
+https://github.com/selaw1/Selawi-Dash/releases/download/cockpit-latest/selawi-dash.apk
 
-- Navigation comes from the phone: Google Maps on the phone, shown on the car by DiAuto, with the
-  cockpit beside it in BYD's split screen. The cockpit only opens DiAuto and contains none of its code.
-- The in-app map is MapLibre with OpenFreeMap tiles: free and independent of Google services, which
-  this car does not have.
-- Weather comes from Open-Meteo (free, no key).
-- Song title and artwork: BYD blocks the notification access screen. The cockpit tries Android's real
-  screen directly and also reads Spotify's "Device Broadcast Status". Controls always work.
-- The assistant will capture audio itself and use cloud speech services through a backend, because the
-  car has no speech recognition or usable English/Arabic voice.
+Every push to the branch rebuilds the app and replaces that file.
 
-## Build locally
+## Build
 
-Open the repository in Android Studio, or run `./gradlew :app:assembleDebug`.
+- Android Studio: open the repository and run the `app` configuration.
+- Terminal: `./gradlew :app:assembleDebug` (output: `app/build/outputs/apk/debug/app-debug.apk`).
+- Screenshots of every screen: `./gradlew :app:recordPaparazziDebug`
+  (output: `app/src/test/snapshots/images/`). CI publishes them as the `screenshots-latest` release.
+
+Builds are signed with the test key in `keystore/`, so new builds install over old ones.
+Use a private key before sharing the app with anyone.
+
+## Code layout
+
+`app/src/main/java/com/selawi/cockpit/`
+
+| Folder | What is in it |
+|---|---|
+| `core/design` | Colours (day/night palettes, accent), type, icons, shared components |
+| `core/platform` | Opening apps, location, crash log |
+| `data/local` | Saved settings |
+| `features/dashboard` | The home screen layout |
+| `features/vehicle` | GPS driving state, the 3D car (Filament) and its road scene |
+| `features/media` | Reading and controlling the playing music |
+| `features/calls` | Call detection and the call card |
+| `features/weather` | Forecast and weather drawing |
+| `features/apps` | App list and pinned shortcuts |
+| `features/settings` | Settings screen and accent colour picker |
+| `features/assistant` | Assistant placeholder |
+
+Car facts the code relies on are in [docs/CAR.md](docs/CAR.md).
+
+## Credits
+
+- 3D car: "Car Concept" from the Khronos glTF Sample Assets, © 2024 Darmstadt Graphics Group GmbH,
+  model and textures by Eric Chadwick, CC BY 4.0 (logo parts hidden).
+- Fonts: Space Grotesk and Inter, SIL Open Font License 1.1 (`app/src/main/assets/licenses`).
+- Weather: Open-Meteo. Covers: iTunes Search API.
