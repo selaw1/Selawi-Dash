@@ -9,6 +9,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.font.Font
@@ -81,6 +82,37 @@ val DayPalette = Palette(
 )
 
 /**
+ * The same palette with the driver's accent colour. The hue is kept exactly; lightness is set
+ * per theme so accent text and icons stay readable on white by day and on black at night.
+ */
+fun Palette.withAccent(chosen: Color): Palette {
+    val hsl = FloatArray(3)
+    androidx.core.graphics.ColorUtils.colorToHSL(chosen.toArgb(), hsl)
+    val hue = hsl[0]
+    val sat = hsl[1].coerceAtLeast(0.15f)
+    fun hsl(s: Float, l: Float) = Color(androidx.core.graphics.ColorUtils.HSLToColor(floatArrayOf(hue, s.coerceIn(0f, 1f), l)))
+    return Palette(
+        dark = dark,
+        background = background,
+        backgroundGlow = backgroundGlow,
+        panelTop = panelTop,
+        panelBottom = panelBottom,
+        surface = surface,
+        surfaceHigh = surfaceHigh,
+        stroke = stroke,
+        accent = if (dark) hsl(sat, 0.68f) else hsl(sat, 0.45f),
+        accentDim = if (dark) hsl(sat * 0.5f, 0.2f) else hsl(sat * 0.8f, 0.92f),
+        onAccent = if (dark) Color(0xFF0B0C0E) else Color.White,
+        inverse = inverse,
+        onInverse = onInverse,
+        textPrimary = textPrimary,
+        textSecondary = textSecondary,
+        textTertiary = textTertiary,
+        warning = warning,
+    )
+}
+
+/**
  * Colour tokens for the current theme. Reading them in a composable or a drawing block
  * subscribes to theme changes, so the whole dashboard switches at sunrise and sunset.
  */
@@ -150,8 +182,12 @@ private val typography = Typography(
 
 /** Night or day theme. [dark] is decided by the caller from the time of day or the driver's choice. */
 @Composable
-fun CockpitTheme(dark: Boolean = true, content: @Composable () -> Unit) {
-    val palette = if (dark) NightPalette else DayPalette
+fun CockpitTheme(dark: Boolean = true, accent: Color? = null, content: @Composable () -> Unit) {
+    // Remembered, so the shared palette only changes when the theme or the accent does.
+    val palette = androidx.compose.runtime.remember(dark, accent) {
+        val base = if (dark) NightPalette else DayPalette
+        if (accent == null) base else base.withAccent(accent)
+    }
     if (CockpitColors.palette !== palette) CockpitColors.palette = palette
     val scheme = if (dark) {
         darkColorScheme(

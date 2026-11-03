@@ -55,6 +55,9 @@ class ScreenshotTest {
     fun dashboardDriving() = shot(Destination.Home) { compact -> Dashboard(compact, moving) }
 
     @Test
+    fun dashboardOrangeAccent() = shot(Destination.Home, accent = androidx.compose.ui.graphics.Color(0xFFF97316)) { compact -> Dashboard(compact, moving) }
+
+    @Test
     fun dashboardDay() = shot(Destination.Home, dark = false) { compact -> Dashboard(compact, moving) }
 
     @Test
@@ -111,11 +114,11 @@ class ScreenshotTest {
         )
     }
 
-    private fun shot(destination: Destination, dark: Boolean = true, content: @Composable (Boolean) -> Unit) {
+    private fun shot(destination: Destination, dark: Boolean = true, accent: androidx.compose.ui.graphics.Color? = null, content: @Composable (Boolean) -> Unit) {
         paparazzi.snapshot {
             // Marks this as a preview, so the 3D car draws its stand-in instead of the native engine.
             CompositionLocalProvider(LocalInspectionMode provides true) {
-                CockpitTheme(dark) {
+                CockpitTheme(dark, accent) {
                     DashFrame(destination, onSelect = {}, pinned = allApps.take(4)) { compact -> content(compact) }
                 }
             }

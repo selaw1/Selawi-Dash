@@ -47,6 +47,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -99,7 +100,13 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         ThemeMode.Auto -> weather?.isDay?.not() ?: (hour < 6 || hour >= 18)
     }
 
-    CockpitTheme(dark) {
+    // Accent: the saved colour, or the live one while the driver drags on the colour wheel.
+    val savedAccent by app.settings.accent.collectAsStateWithLifecycle(initialValue = null)
+    var previewing by remember { mutableStateOf(false) }
+    var previewAccent by remember { mutableStateOf<Color?>(null) }
+    val accent = if (previewing) previewAccent else savedAccent?.let { Color(it) }
+
+    CockpitTheme(dark, accent) {
         var destination by rememberSaveable { mutableStateOf(Destination.Home) }
         val scope = rememberCoroutineScope()
         val playing by app.media.nowPlaying.collectAsStateWithLifecycle()
@@ -160,7 +167,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     }
                     Destination.Assistant -> Box(Modifier.padding(Space.l)) { AssistantScreen() }
                     Destination.Settings -> Box(Modifier.padding(Space.l)) { SettingsScreen(
-                        state = SettingsState(fullScreen, keepOn, themeMode, crash),
+                        state = SettingsState(fullScreen, keepOn, themeMode, crash, accent),
                         actions = SettingsActions(
                             onFullScreen = { scope.launch { app.settings.setFullScreen(it) } },
                             onKeepOn = { scope.launch { app.settings.setKeepScreenOn(it) } },
@@ -177,6 +184,11 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                             onClearCrash = {
                                 CrashLog.clear(activity)
                                 crash = null
+                            },
+                            onAccent = { color, final ->
+                                previewing = true
+                                previewAccent = color
+                                if (final) scope.launch { app.settings.setAccent(color?.toArgb()) }
                             },
                         ),
                     ) }

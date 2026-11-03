@@ -31,6 +31,7 @@ class SettingsState(
     val keepOn: Boolean,
     val theme: ThemeMode,
     val crash: String?,
+    val accent: androidx.compose.ui.graphics.Color? = null,
 )
 
 class SettingsActions(
@@ -42,6 +43,7 @@ class SettingsActions(
     val onDefaultCar: () -> Unit = {},
     val onShareCrash: () -> Unit = {},
     val onClearCrash: () -> Unit = {},
+    val onAccent: (androidx.compose.ui.graphics.Color?, Boolean) -> Unit = { _, _ -> },
 )
 
 @Composable
@@ -72,6 +74,17 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
                 actions.onFullScreen,
             )
             ToggleRow("Keep screen on", "Stop the screen from dimming while the cockpit is open.", state.keepOn, actions.onKeepOn)
+        }
+        CockpitCard(Modifier.fillMaxWidth()) {
+            SectionLabel("Accent colour")
+            Spacer(Modifier.height(Space.s))
+            Text(
+                "Pick any colour on the wheel; the whole dashboard follows. Brightness is tuned for day and night so it stays readable.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = CockpitColors.TextSecondary,
+            )
+            Spacer(Modifier.height(Space.m))
+            AccentPicker(state.accent, actions.onAccent)
         }
         CockpitCard(Modifier.fillMaxWidth()) {
             SectionLabel("Car")

@@ -17,6 +17,14 @@ class SettingsStore(private val context: Context) {
     private val keepScreenOnKey = booleanPreferencesKey("keep_screen_on")
     private val pinnedKey = stringPreferencesKey("pinned_apps")
     private val themeKey = stringPreferencesKey("theme")
+    private val accentKey = androidx.datastore.preferences.core.intPreferencesKey("accent")
+
+    /** The driver's accent colour (ARGB), or null for the default blue. */
+    val accent: Flow<Int?> = context.dataStore.data.map { it[accentKey] }
+
+    suspend fun setAccent(argb: Int?) = context.dataStore.edit {
+        if (argb == null) it.remove(accentKey) else it[accentKey] = argb
+    }
 
     /** Auto follows sunrise and sunset, like Google Maps. */
     val theme: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
