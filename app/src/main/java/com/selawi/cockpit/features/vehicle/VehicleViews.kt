@@ -99,7 +99,8 @@ fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, compact: Bo
 
 @Composable
 private fun TripStat(value: String, label: String, modifier: Modifier) {
-    Column(modifier) {
+    // Each number and its label sit centred in their quarter of the row, under the car.
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
         Text(value, style = MaterialTheme.typography.headlineMedium, color = CockpitColors.TextPrimary)
         Text(label, style = MaterialTheme.typography.labelSmall, color = CockpitColors.TextSecondary)
     }
