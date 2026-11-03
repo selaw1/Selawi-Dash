@@ -15,6 +15,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items as rowItems
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -46,16 +49,31 @@ fun AppsScreen(
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(Space.m)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                ScreenTitle("Apps")
-                Text(
-                    "Tap to open. Press and hold to pin to the dashboard.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = CockpitColors.TextSecondary,
-                )
-            }
+            ScreenTitle("Apps", Modifier.weight(1f))
             PillButton("BYD home", onClick = onCarHome)
         }
+        // Shortcuts: the driver's favourites, always at the top.
+        Text("SHORTCUTS", style = MaterialTheme.typography.labelMedium, color = CockpitColors.TextTertiary)
+        if (pinned.isEmpty()) {
+            Text(
+                "Press and hold any app below to add it here.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = CockpitColors.TextSecondary,
+            )
+        } else {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(Space.m)) {
+                rowItems(pinned, key = { "pin-" + it.key }) { app ->
+                    Box(Modifier.width(140.dp)) {
+                        AppTile(app, pinned = true, onOpen = { onOpen(app) }, onTogglePin = { onTogglePin(app) })
+                    }
+                }
+            }
+        }
+        Text(
+            "ALL APPS · PRESS AND HOLD TO ADD OR REMOVE A SHORTCUT",
+            style = MaterialTheme.typography.labelMedium,
+            color = CockpitColors.TextTertiary,
+        )
         LazyVerticalGrid(
             columns = GridCells.Adaptive(140.dp),
             verticalArrangement = Arrangement.spacedBy(Space.m),
@@ -114,7 +132,7 @@ fun AppTile(
                     .background(CockpitColors.Accent),
                 contentAlignment = Alignment.Center,
             ) {
-                Icon(Icons.Filled.Star, contentDescription = "Pinned", tint = CockpitColors.Background, modifier = Modifier.size(16.dp))
+                Icon(Icons.Filled.Star, contentDescription = "Pinned", tint = CockpitColors.OnAccent, modifier = Modifier.size(16.dp))
             }
         }
     }

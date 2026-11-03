@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -25,59 +24,111 @@ import com.selawi.cockpit.core.design.PillButton
 import com.selawi.cockpit.core.design.ScreenTitle
 import com.selawi.cockpit.core.design.SectionLabel
 import com.selawi.cockpit.core.design.Space
+import com.selawi.cockpit.data.local.ThemeMode
+
+class SettingsState(
+    val fullScreen: Boolean,
+    val keepOn: Boolean,
+    val theme: ThemeMode,
+    val openBeside: Boolean,
+    val musicAccess: Boolean,
+    val crash: String?,
+)
+
+class SettingsActions(
+    val onFullScreen: (Boolean) -> Unit = {},
+    val onKeepOn: (Boolean) -> Unit = {},
+    val onTheme: (ThemeMode) -> Unit = {},
+    val onOpenBeside: (Boolean) -> Unit = {},
+    val onAllowAccess: () -> Unit = {},
+    val onCarHome: () -> Unit = {},
+    val onChooseCar: () -> Unit = {},
+    val onDefaultCar: () -> Unit = {},
+    val onShareCrash: () -> Unit = {},
+    val onClearCrash: () -> Unit = {},
+)
 
 @Composable
-fun SettingsScreen(
-    fullScreen: Boolean,
-    keepOn: Boolean,
-    access: Boolean,
-    onFullScreen: (Boolean) -> Unit,
-    onKeepOn: (Boolean) -> Unit,
-    onAllowAccess: () -> Unit,
-    onCarHome: () -> Unit,
-    onChooseCar: () -> Unit = {},
-    onDefaultCar: () -> Unit = {},
-) {
-
+fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(Space.m),
     ) {
         ScreenTitle("Settings")
-        CockpitCard(Modifier.fillMaxWidth().widthIn(max = 900.dp)) {
-            SectionLabel("Display")
+        CockpitCard(Modifier.fillMaxWidth()) {
+            SectionLabel("Appearance")
+            Spacer(Modifier.height(Space.s))
+            Text(
+                "Auto switches to the light theme by day and the dark theme at night, like Google Maps.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = CockpitColors.TextSecondary,
+            )
+            Spacer(Modifier.height(Space.m))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                ThemeMode.entries.forEach { mode ->
+                    PillButton(mode.name, primary = mode == state.theme) { actions.onTheme(mode) }
+                }
+            }
             ToggleRow(
                 "Full screen",
                 "Hide the car's status and climate bars. Swipe from the bottom edge to show them for a moment.",
-                fullScreen,
-                onFullScreen,
+                state.fullScreen,
+                actions.onFullScreen,
             )
-            ToggleRow("Keep screen on", "Stop the screen from dimming while the cockpit is open.", keepOn, onKeepOn)
+            ToggleRow("Keep screen on", "Stop the screen from dimming while the cockpit is open.", state.keepOn, actions.onKeepOn)
+        }
+        CockpitCard(Modifier.fillMaxWidth()) {
+            SectionLabel("Apps")
+            ToggleRow(
+                "Open apps beside the cockpit",
+                "Music apps, shortcuts and Drive mode open in split screen next to the cockpit when the car allows it.",
+                state.openBeside,
+                actions.onOpenBeside,
+            )
         }
         CockpitCard(Modifier.fillMaxWidth()) {
             SectionLabel("Music")
             Spacer(Modifier.height(Space.s))
             Text(
-                if (access) "Access to music apps: allowed" else "Access to music apps: not allowed",
+                if (state.musicAccess) "Access to music apps: allowed" else "Access to music apps: not allowed",
                 style = MaterialTheme.typography.titleMedium,
-                color = if (access) CockpitColors.Accent else CockpitColors.Warning,
+                color = if (state.musicAccess) CockpitColors.Accent else CockpitColors.Warning,
             )
             Spacer(Modifier.height(Space.s))
-            PillButton("Allow access", onClick = onAllowAccess)
+            PillButton("Allow access", onClick = actions.onAllowAccess)
         }
         CockpitCard(Modifier.fillMaxWidth()) {
             SectionLabel("Car")
             Spacer(Modifier.height(Space.s))
             Text(
-                "3D car on the dashboard: choose any .glb model you are allowed to use, from the car's storage or a USB stick. It appears the next time you open Home.",
+                "3D car on the home screen: choose any .glb model you are allowed to use, from the car's storage or a " +
+                    "USB stick. It appears the next time you open Home.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CockpitColors.TextSecondary,
             )
             Spacer(Modifier.height(Space.s))
             Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
-                PillButton("Choose car model", onClick = onChooseCar)
-                PillButton("Use default car", onClick = onDefaultCar)
-                PillButton("Open BYD home", onClick = onCarHome)
+                PillButton("Choose car model", onClick = actions.onChooseCar)
+                PillButton("Use default car", onClick = actions.onDefaultCar)
+                PillButton("Open BYD home", onClick = actions.onCarHome)
+            }
+        }
+        CockpitCard(Modifier.fillMaxWidth()) {
+            SectionLabel("Problem report")
+            Spacer(Modifier.height(Space.s))
+            if (state.crash == null) {
+                Text("No crashes recorded.", style = MaterialTheme.typography.bodyMedium, color = CockpitColors.TextSecondary)
+            } else {
+                Text(
+                    state.crash.lineSequence().take(6).joinToString("\n"),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = CockpitColors.Warning,
+                )
+                Spacer(Modifier.height(Space.s))
+                Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                    PillButton("Share report", primary = true, onClick = actions.onShareCrash)
+                    PillButton("Clear", onClick = actions.onClearCrash)
+                }
             }
         }
         CockpitCard(Modifier.fillMaxWidth()) {

@@ -27,7 +27,10 @@ import com.selawi.cockpit.features.media.MediaScreen
 import com.selawi.cockpit.features.media.MediaSource
 import com.selawi.cockpit.features.media.NowPlaying
 import com.selawi.cockpit.features.navigation.MapScreen
+import com.selawi.cockpit.features.settings.SettingsActions
 import com.selawi.cockpit.features.settings.SettingsScreen
+import com.selawi.cockpit.features.settings.SettingsState
+import com.selawi.cockpit.data.local.ThemeMode
 import com.selawi.cockpit.features.vehicle.DrivingState
 import com.selawi.cockpit.features.weather.Weather
 import org.junit.Rule
@@ -73,9 +76,20 @@ class ScreenshotTest {
     @Test
     fun settings() = shot(Destination.Settings) {
         SettingsScreen(
-            fullScreen = true, keepOn = false, access = false,
-            onFullScreen = {}, onKeepOn = {}, onAllowAccess = {}, onCarHome = {},
+            SettingsState(
+                fullScreen = true, keepOn = false, theme = ThemeMode.Auto, openBeside = true,
+                musicAccess = false, crash = null,
+            ),
+            SettingsActions(),
         )
+    }
+
+    @Test
+    fun dashboardDay() = shot(Destination.Home, dark = false) { compact -> Dashboard(compact) }
+
+    @Test
+    fun appsDay() = shot(Destination.Apps, dark = false) {
+        AppsScreen(apps = allApps, pinned = allApps.take(5), onOpen = {}, onTogglePin = {}, onCarHome = {})
     }
 
     @Test
@@ -93,20 +107,19 @@ class ScreenshotTest {
             state = DashboardState(
                 weather = Weather(27, 31, 18, "Mostly clear", isDay = true, place = "Amman"),
                 playing = playing,
-                pinned = allApps.take(5),
                 driving = driving,
                 fixedTime = LocalDateTime.of(2026, 11, 3, 12, 51),
             ),
             controls = MediaControls.None,
-            actions = DashboardActions({}, {}, {}, {}, {}),
+            actions = DashboardActions({}, {}, {}),
         )
     }
 
-    private fun shot(destination: Destination, content: @Composable (Boolean) -> Unit) {
+    private fun shot(destination: Destination, dark: Boolean = true, content: @Composable (Boolean) -> Unit) {
         paparazzi.snapshot {
             // Marks this as a preview, so the map draws its stand-in instead of the native engine.
             CompositionLocalProvider(LocalInspectionMode provides true) {
-                CockpitTheme {
+                CockpitTheme(dark) {
                     CockpitFrame(destination, onSelect = {}) { compact -> content(compact) }
                 }
             }

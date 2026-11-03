@@ -78,7 +78,7 @@ fun RoundIconButton(
         Icon(
             icon,
             contentDescription = contentDescription,
-            tint = if (primary) Color.Black else CockpitColors.TextPrimary,
+            tint = if (primary) CockpitColors.OnAccent else CockpitColors.TextPrimary,
             modifier = Modifier.size(size * 0.45f),
         )
     }
@@ -103,7 +103,7 @@ fun PillButton(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Space.s, Alignment.CenterHorizontally),
     ) {
-        val tint = if (primary) Color.Black else CockpitColors.TextPrimary
+        val tint = if (primary) CockpitColors.OnAccent else CockpitColors.TextPrimary
         if (icon != null) Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(24.dp))
         Text(text, style = MaterialTheme.typography.labelLarge, color = tint)
     }

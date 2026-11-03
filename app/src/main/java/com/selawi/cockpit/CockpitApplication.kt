@@ -1,6 +1,7 @@
 package com.selawi.cockpit
 
 import android.app.Application
+import com.selawi.cockpit.core.platform.CrashLog
 import com.selawi.cockpit.data.local.SettingsStore
 import com.selawi.cockpit.features.apps.AppsRepository
 import com.selawi.cockpit.features.media.MediaRepository
@@ -26,6 +27,7 @@ class CockpitApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        CrashLog.install(this)
         settings = SettingsStore(this)
         apps = AppsRepository(this, settings, scope)
         media = MediaRepository(this, scope)

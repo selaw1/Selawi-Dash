@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import com.selawi.cockpit.core.platform.SplitScreen
 
 /**
  * Navigation comes from the driver's phone: Google Maps on the phone, shown on the car through
@@ -36,22 +37,14 @@ object PhoneNavigation {
         runCatching { context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
 
-    /**
-     * Drive mode: DiAuto beside the cockpit. Android 12 can only place an app next to us when the
-     * cockpit is already in split screen; otherwise the driver uses the car's split-screen button.
-     */
+    /** Drive mode: DiAuto beside the cockpit, as Android Auto shows the map next to the player. */
     fun openBeside(activity: Activity) {
         val intent = launchIntent(activity)
         if (intent == null) {
             Toast.makeText(activity, "Install DiAuto to show navigation from your phone", Toast.LENGTH_LONG).show()
             return
         }
-        val started = runCatching {
-            activity.startActivity(
-                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT),
-            )
-        }.isSuccess
-        if (started && !activity.isInMultiWindowMode) {
+        if (!SplitScreen.openBeside(activity, intent)) {
             Toast.makeText(
                 activity,
                 "Tap the car's split-screen button to put the cockpit beside the map",

@@ -8,6 +8,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
+import com.selawi.cockpit.core.design.CockpitColors
 
 /** Lets a screen act on the map once it is ready. */
 class MapController {
@@ -23,7 +24,7 @@ fun CarMap(modifier: Modifier = Modifier, interactive: Boolean = true, controlle
     if (LocalInspectionMode.current) {
         MapPlaceholder(modifier)
     } else {
-        FreeMap(modifier, interactive, controller)
+        FreeMap(modifier, interactive, controller, dark = CockpitColors.isDark)
     }
 }
 

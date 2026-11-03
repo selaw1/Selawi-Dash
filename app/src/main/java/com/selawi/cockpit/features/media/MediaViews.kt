@@ -148,6 +148,7 @@ fun MediaScreen(
     access: Boolean,
     controls: MediaControls,
     onAllowAccess: () -> Unit,
+    onOpenApp: (Intent) -> Unit = {},
 ) {
     val context = LocalContext.current
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
@@ -186,7 +187,7 @@ fun MediaScreen(
                         val launch = remember(pkg) { context.packageManager.getLaunchIntentForPackage(pkg) }
                         if (launch != null) {
                             PillButton(label, Modifier.widthIn(min = 120.dp)) {
-                                context.tryStart(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                                onOpenApp(launch)
                             }
                         }
                     }
