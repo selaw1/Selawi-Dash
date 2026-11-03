@@ -150,7 +150,8 @@ GitHub Actions builds the APK on every push that touches the probe
 | Waze handoff | ✅ Opens |
 | Any map app (`geo:`) | ✅ Shows the app chooser |
 | Media keys (play/pause/next/previous) | ✅ Control the playing app with no permission |
-| Now playing (title, artwork) | ❌ Notification access not granted (whether a settings screen opened is still to confirm) |
+| Now playing (title, artwork) | ❌ Notification access screen is blocked: BYD answers with "multimedia system does not support this operation" |
+| Split screen | ✅ The probe runs in the car's split screen beside other apps (DiAuto) |
 | Microphone (MIC, VOICE_RECOGNITION, VOICE_COMMUNICATION) | ✅ All three record real audio (peak -28.5 dBFS) |
 | Android speech recognition | ❌ No recognition service on the car |
 | Text to speech | ❌ Only engine is `com.byd.autovoice`; English not supported, speak fails |
@@ -176,6 +177,5 @@ GitHub Actions builds the APK on every push that touches the probe
 
 ### Still to test
 
-1. **Media → Allow access**: does a settings screen open, or a "not supported" message?
-2. The car's split-screen button with the probe on one side and DiAuto on the other.
-3. Reboot: turn the car off and on, then open the probe again.
+1. Opening the real notification access screen by its exact component name (bypasses BYD's decoy).
+2. Reboot: turn the car off and on, then open the probe again.
