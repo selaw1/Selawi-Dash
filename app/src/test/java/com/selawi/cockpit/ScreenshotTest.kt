@@ -32,6 +32,7 @@ import com.selawi.cockpit.features.settings.SettingsScreen
 import com.selawi.cockpit.features.settings.SettingsState
 import com.selawi.cockpit.data.local.ThemeMode
 import com.selawi.cockpit.features.vehicle.DrivingState
+import com.selawi.cockpit.features.phone.NavGuidance
 import com.selawi.cockpit.features.weather.Weather
 import org.junit.Rule
 import org.junit.Test
@@ -85,6 +86,14 @@ class ScreenshotTest {
     }
 
     @Test
+    fun dashboardNavigating() {
+        guidance = NavGuidance("300 m", "Turn right onto King Abdullah II Street", "12 min · 5.3 km · 15:03", null)
+        shot(Destination.Home) { compact -> Dashboard(compact) }
+    }
+
+    private var guidance: NavGuidance? = null
+
+    @Test
     fun dashboardDay() = shot(Destination.Home, dark = false) { compact -> Dashboard(compact) }
 
     @Test
@@ -108,6 +117,7 @@ class ScreenshotTest {
                 weather = Weather(27, 31, 18, "Mostly clear", isDay = true, place = "Amman"),
                 playing = playing,
                 driving = driving,
+                guidance = guidance,
                 fixedTime = LocalDateTime.of(2026, 11, 3, 12, 51),
             ),
             controls = MediaControls.None,

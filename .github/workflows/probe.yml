@@ -5,6 +5,7 @@ on:
     paths:
       - "app/**"
       - "probe/**"
+      - "companion/**"
       - "gradle/**"
       - "*.gradle.kts"
       - "gradle.properties"
@@ -36,9 +37,10 @@ jobs:
           MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug :probe:assembleDebug --stacktrace
+          ./gradlew :app:assembleDebug :probe:assembleDebug :companion:assembleDebug --stacktrace
           cp app/build/outputs/apk/debug/app-debug.apk selawi-cockpit.apk
           cp probe/build/outputs/apk/debug/probe-debug.apk cockpit-probe.apk
+          cp companion/build/outputs/apk/debug/companion-debug.apk cockpit-link.apk
 
       - name: Render screenshots
         run: ./gradlew :app:recordPaparazziDebug --stacktrace
@@ -54,6 +56,7 @@ jobs:
           path: |
             selawi-cockpit.apk
             cockpit-probe.apk
+            cockpit-link.apk
 
       # Fixed download links for the car's browser:
       # .../releases/download/cockpit-latest/selawi-cockpit.apk
@@ -69,5 +72,6 @@ jobs:
           }
           publish cockpit-latest selawi-cockpit.apk "Selawi Cockpit (latest test build)"
           publish probe-latest cockpit-probe.apk "Cockpit Probe (latest test build)"
+          publish link-latest cockpit-link.apk "Cockpit Link for the phone (latest test build)"
           (cd app/src/test/snapshots/images && zip -q ../../../../../cockpit-screenshots.zip *.png)
           publish screenshots-latest cockpit-screenshots.zip "Cockpit screenshots (latest build)"

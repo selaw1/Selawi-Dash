@@ -28,10 +28,12 @@ import com.selawi.cockpit.core.design.RoundIconButton
 import com.selawi.cockpit.core.design.ScreenTitle
 import com.selawi.cockpit.core.design.SectionLabel
 import com.selawi.cockpit.core.design.Space
+import com.selawi.cockpit.features.phone.NavCard
+import com.selawi.cockpit.features.phone.NavGuidance
 
 /** Full map screen with a recentre button. */
 @Composable
-fun MapScreen() {
+fun MapScreen(guidance: NavGuidance? = null) {
     val controller = remember { MapController() }
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
         Box(
@@ -41,6 +43,7 @@ fun MapScreen() {
                 .clip(RoundedCornerShape(Space.cardRadius)),
         ) {
             CarMap(Modifier.fillMaxSize(), interactive = true, controller = controller)
+            guidance?.let { NavCard(it, Modifier.align(Alignment.TopStart).padding(Space.m)) }
             RoundIconButton(
                 CockpitIcons.MyLocation,
                 "Centre on the car",

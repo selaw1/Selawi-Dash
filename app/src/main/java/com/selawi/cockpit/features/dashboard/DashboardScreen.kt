@@ -36,6 +36,8 @@ import androidx.compose.material.icons.filled.Refresh
 import com.selawi.cockpit.core.design.RoundIconButton
 import com.selawi.cockpit.features.navigation.CarMap
 import com.selawi.cockpit.features.navigation.MapController
+import com.selawi.cockpit.features.phone.NavCard
+import com.selawi.cockpit.features.phone.NavGuidance
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -67,6 +69,8 @@ class DashboardState(
     val weather: Weather?,
     val playing: NowPlaying,
     val driving: DrivingState = DrivingState(),
+    /** Turn-by-turn from Google Maps on the phone, while it navigates. */
+    val guidance: NavGuidance? = null,
     /** Fixed time for screenshots; null shows the live clock. */
     val fixedTime: LocalDateTime? = null,
 )
@@ -80,7 +84,7 @@ fun DashboardScreen(compact: Boolean, state: DashboardState, controls: MediaCont
 @Composable
 private fun WideDashboard(state: DashboardState, controls: MediaControls, actions: DashboardActions) {
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
-        VehicleCard(state.driving, actions, Modifier.weight(1.5f).fillMaxHeight())
+        VehicleCard(state.driving, state.guidance, Modifier.weight(1.5f).fillMaxHeight())
         Column(Modifier.weight(1f).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(Space.m)) {
             TimeWeatherCard(state, Modifier.fillMaxWidth())
             MediaCard(state.playing, controls, Modifier.fillMaxWidth().weight(1f))
@@ -97,6 +101,7 @@ private fun CompactDashboard(state: DashboardState, controls: MediaControls, act
         verticalArrangement = Arrangement.spacedBy(Space.m),
     ) {
         TimeWeatherCard(state, Modifier.fillMaxWidth())
+        state.guidance?.let { NavCard(it) }
         MediaCard(state.playing, controls, Modifier.fillMaxWidth(), compact = true)
         AssistantCard(actions, Modifier.fillMaxWidth())
     }
@@ -156,9 +161,12 @@ private fun TimeWeatherCard(state: DashboardState, modifier: Modifier) {
  * Front/Back turns the parked car round.
  */
 @Composable
-private fun VehicleCard(driving: DrivingState, actions: DashboardActions, modifier: Modifier) {
+private fun VehicleCard(driving: DrivingState, guidance: NavGuidance?, modifier: Modifier) {
     val shape = RoundedCornerShape(Space.cardRadius)
     var showMap by rememberSaveable { mutableStateOf(false) }
+    // When the phone starts navigating, show the map with the turn card; the driver can still flip back.
+    val navigating = guidance != null
+    LaunchedEffect(navigating) { if (navigating) showMap = true }
     var showFront by rememberSaveable { mutableStateOf(true) }
     Box(
         modifier
@@ -173,6 +181,7 @@ private fun VehicleCard(driving: DrivingState, actions: DashboardActions, modifi
                 val controller = remember { MapController() }
                 Box(Modifier.fillMaxSize()) {
                     CarMap(Modifier.fillMaxSize(), interactive = true, controller = controller)
+                    guidance?.let { NavCard(it, Modifier.align(Alignment.TopStart).padding(Space.l)) }
                     RoundIconButton(
                         CockpitIcons.MyLocation,
                         "Centre on the car",

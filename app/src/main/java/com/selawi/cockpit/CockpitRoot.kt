@@ -114,6 +114,10 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         val pinned by app.apps.pinned.collectAsStateWithLifecycle()
         val allApps by app.apps.apps.collectAsStateWithLifecycle()
         val driving by app.driving.state.collectAsStateWithLifecycle()
+        val guidance by app.phone.guidance.collectAsStateWithLifecycle()
+        val phoneStatus by app.phone.status.collectAsStateWithLifecycle()
+        val phoneCode by app.phone.code.collectAsStateWithLifecycle()
+        val phoneAddress by app.phone.address.collectAsStateWithLifecycle()
         val fullScreen by app.settings.fullScreen.collectAsStateWithLifecycle(initialValue = true)
         val keepOn by app.settings.keepScreenOn.collectAsStateWithLifecycle(initialValue = false)
         val openBeside by app.settings.openBeside.collectAsStateWithLifecycle(initialValue = true)
@@ -157,13 +161,13 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                 when (target) {
                     Destination.Home -> DashboardScreen(
                         compact = compact,
-                        state = DashboardState(weather, playing, driving),
+                        state = DashboardState(weather, playing, driving, guidance),
                         controls = controls,
                         actions = DashboardActions(
                             onOpenAssistant = { destination = Destination.Assistant },
                         ),
                     )
-                    Destination.Map -> MapScreen()
+                    Destination.Map -> MapScreen(guidance)
                     Destination.Media -> MediaScreen(
                         playing = playing,
                         access = access,
@@ -184,7 +188,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     }
                     Destination.Assistant -> AssistantScreen()
                     Destination.Settings -> SettingsScreen(
-                        state = SettingsState(fullScreen, keepOn, themeMode, openBeside, access, crash),
+                        state = SettingsState(fullScreen, keepOn, themeMode, openBeside, access, crash, phoneStatus, phoneCode, phoneAddress),
                         actions = SettingsActions(
                             onFullScreen = { scope.launch { app.settings.setFullScreen(it) } },
                             onKeepOn = { scope.launch { app.settings.setKeepScreenOn(it) } },

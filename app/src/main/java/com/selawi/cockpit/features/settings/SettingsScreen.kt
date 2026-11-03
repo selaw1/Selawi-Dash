@@ -33,6 +33,9 @@ class SettingsState(
     val openBeside: Boolean,
     val musicAccess: Boolean,
     val crash: String?,
+    val phoneStatus: String = "",
+    val phoneCode: String = "",
+    val phoneAddress: String = "",
 )
 
 class SettingsActions(
@@ -85,6 +88,31 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
                 state.openBeside,
                 actions.onOpenBeside,
             )
+        }
+        CockpitCard(Modifier.fillMaxWidth()) {
+            SectionLabel("Phone")
+            Spacer(Modifier.height(Space.s))
+            Text(state.phoneStatus, style = MaterialTheme.typography.titleMedium, color = CockpitColors.TextPrimary)
+            Spacer(Modifier.height(Space.s))
+            Text(
+                "Install Cockpit Link on your phone, join the same Wi-Fi as the car (the car's hotspot or your " +
+                    "phone's), and enter this code once. Google Maps directions from the phone then show on the cockpit's map.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = CockpitColors.TextSecondary,
+            )
+            Spacer(Modifier.height(Space.s))
+            Text(
+                "Pairing code  ${state.phoneCode}",
+                style = MaterialTheme.typography.headlineMedium,
+                color = CockpitColors.Accent,
+            )
+            if (state.phoneAddress.isNotBlank()) {
+                Text(
+                    "Car address (if the phone does not find the car by itself): ${state.phoneAddress}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = CockpitColors.TextSecondary,
+                )
+            }
         }
         CockpitCard(Modifier.fillMaxWidth()) {
             SectionLabel("Music")

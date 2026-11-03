@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 
 private val Context.dataStore by preferencesDataStore(name = "cockpit_settings")
@@ -17,6 +18,15 @@ class SettingsStore(private val context: Context) {
     private val pinnedKey = stringPreferencesKey("pinned_apps")
     private val themeKey = stringPreferencesKey("theme")
     private val splitKey = booleanPreferencesKey("open_beside")
+    private val pairingKey = stringPreferencesKey("pairing_code")
+
+    /** Six-digit code the phone app must send before the cockpit accepts it. Made once, kept. */
+    suspend fun pairingCode(): String {
+        context.dataStore.data.first()[pairingKey]?.let { return it }
+        val code = (100_000 + java.security.SecureRandom().nextInt(900_000)).toString()
+        context.dataStore.edit { it[pairingKey] = code }
+        return code
+    }
 
     /** Auto follows sunrise and sunset, like Google Maps. */
     val theme: Flow<ThemeMode> = context.dataStore.data.map { prefs ->
