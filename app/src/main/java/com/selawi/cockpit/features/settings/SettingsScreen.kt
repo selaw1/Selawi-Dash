@@ -15,13 +15,9 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.selawi.cockpit.BuildConfig
 import com.selawi.cockpit.core.design.CockpitCard
 import com.selawi.cockpit.core.design.CockpitColors
@@ -29,19 +25,17 @@ import com.selawi.cockpit.core.design.PillButton
 import com.selawi.cockpit.core.design.ScreenTitle
 import com.selawi.cockpit.core.design.SectionLabel
 import com.selawi.cockpit.core.design.Space
-import com.selawi.cockpit.core.platform.openCarHome
-import com.selawi.cockpit.data.local.SettingsStore
-import com.selawi.cockpit.features.media.MediaRepository
-import com.selawi.cockpit.features.media.NotificationAccess
-import kotlinx.coroutines.launch
 
 @Composable
-fun SettingsScreen(settings: SettingsStore, media: MediaRepository) {
-    val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    val fullScreen by settings.fullScreen.collectAsStateWithLifecycle(initialValue = true)
-    val keepOn by settings.keepScreenOn.collectAsStateWithLifecycle(initialValue = false)
-    val access by media.sessionAccess.collectAsStateWithLifecycle()
+fun SettingsScreen(
+    fullScreen: Boolean,
+    keepOn: Boolean,
+    access: Boolean,
+    onFullScreen: (Boolean) -> Unit,
+    onKeepOn: (Boolean) -> Unit,
+    onAllowAccess: () -> Unit,
+    onCarHome: () -> Unit,
+) {
 
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()),
@@ -54,10 +48,9 @@ fun SettingsScreen(settings: SettingsStore, media: MediaRepository) {
                 "Full screen",
                 "Hide the car's status and climate bars. Swipe from the bottom edge to show them for a moment.",
                 fullScreen,
-            ) { scope.launch { settings.setFullScreen(it) } }
-            ToggleRow("Keep screen on", "Stop the screen from dimming while the cockpit is open.", keepOn) {
-                scope.launch { settings.setKeepScreenOn(it) }
-            }
+                onFullScreen,
+            )
+            ToggleRow("Keep screen on", "Stop the screen from dimming while the cockpit is open.", keepOn, onKeepOn)
         }
         CockpitCard(Modifier.fillMaxWidth()) {
             SectionLabel("Music")
@@ -68,12 +61,12 @@ fun SettingsScreen(settings: SettingsStore, media: MediaRepository) {
                 color = if (access) CockpitColors.Accent else CockpitColors.Warning,
             )
             Spacer(Modifier.height(Space.s))
-            PillButton("Allow access") { NotificationAccess.open(context) }
+            PillButton("Allow access", onClick = onAllowAccess)
         }
         CockpitCard(Modifier.fillMaxWidth()) {
             SectionLabel("Car")
             Spacer(Modifier.height(Space.s))
-            PillButton("Open BYD home") { context.openCarHome() }
+            PillButton("Open BYD home", onClick = onCarHome)
         }
         Text(
             "Selawi Cockpit ${BuildConfig.VERSION_NAME}",

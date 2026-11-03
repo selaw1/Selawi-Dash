@@ -23,30 +23,26 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.selawi.cockpit.core.design.CockpitColors
 import com.selawi.cockpit.core.design.PillButton
 import com.selawi.cockpit.core.design.ScreenTitle
 import com.selawi.cockpit.core.design.Space
-import com.selawi.cockpit.core.platform.openCarHome
-import com.selawi.cockpit.core.platform.tryStart
 
 @Composable
-fun AppsScreen(repo: AppsRepository) {
-    val context = LocalContext.current
-    val apps by repo.apps.collectAsStateWithLifecycle()
-    val pinned by repo.pinned.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { repo.refresh() }
+fun AppsScreen(
+    apps: List<AppInfo>,
+    pinned: List<AppInfo>,
+    onOpen: (AppInfo) -> Unit,
+    onTogglePin: (AppInfo) -> Unit,
+    onCarHome: () -> Unit,
+) {
 
     Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.spacedBy(Space.m)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -58,7 +54,7 @@ fun AppsScreen(repo: AppsRepository) {
                     color = CockpitColors.TextSecondary,
                 )
             }
-            PillButton("BYD home") { context.openCarHome() }
+            PillButton("BYD home", onClick = onCarHome)
         }
         LazyVerticalGrid(
             columns = GridCells.Adaptive(140.dp),
@@ -70,8 +66,8 @@ fun AppsScreen(repo: AppsRepository) {
                 AppTile(
                     app = app,
                     pinned = pinned.any { it.key == app.key },
-                    onOpen = { context.tryStart(repo.launch(app), "${app.label} could not be opened") },
-                    onTogglePin = { repo.togglePinned(app) },
+                    onOpen = { onOpen(app) },
+                    onTogglePin = { onTogglePin(app) },
                 )
             }
         }

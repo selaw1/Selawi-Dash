@@ -40,6 +40,14 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk selawi-cockpit.apk
           cp probe/build/outputs/apk/debug/probe-debug.apk cockpit-probe.apk
 
+      - name: Render screenshots
+        run: ./gradlew :app:recordPaparazziDebug --stacktrace
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: screenshots
+          path: app/src/test/snapshots/images/*.png
+
       - uses: actions/upload-artifact@v4
         with:
           name: apks

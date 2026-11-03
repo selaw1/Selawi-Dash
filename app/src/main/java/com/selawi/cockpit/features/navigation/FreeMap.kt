@@ -2,6 +2,8 @@ package com.selawi.cockpit.features.navigation
 
 import android.annotation.SuppressLint
 import android.content.Context
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,7 +24,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -59,6 +64,11 @@ fun FreeMap(
     interactive: Boolean = true,
     onMapReady: (MapLibreMap) -> Unit = {},
 ) {
+    if (LocalInspectionMode.current) {
+        // Screenshot tests and previews cannot load the native map engine.
+        MapPlaceholder(modifier)
+        return
+    }
     val context = LocalContext.current
     val mapView = remember { createMap(context, interactive, onMapReady) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
@@ -81,6 +91,27 @@ fun FreeMap(
         }
     }
     AndroidView(factory = { mapView }, modifier = modifier)
+}
+
+/** Stand-in drawn like a dim street grid, used where the real map cannot run. */
+@Composable
+private fun MapPlaceholder(modifier: Modifier) {
+    Canvas(modifier.background(Color(0xFFE8E4DC))) {
+        val step = 56.dp.toPx()
+        var x = 0f
+        while (x < size.width) {
+            drawLine(Color.White, Offset(x, 0f), Offset(x + size.height * 0.3f, size.height), strokeWidth = 10f)
+            x += step * 2.3f
+        }
+        var y = 0f
+        while (y < size.height) {
+            drawLine(Color.White, Offset(0f, y), Offset(size.width, y - size.width * 0.1f), strokeWidth = 8f)
+            y += step * 1.7f
+        }
+        drawLine(Color(0xFFF5C26B), Offset(0f, size.height * 0.62f), Offset(size.width, size.height * 0.38f), strokeWidth = 18f)
+        drawCircle(Color(0xFF3DDCFF), radius = 14.dp.toPx(), center = center)
+        drawCircle(Color.White, radius = 6.dp.toPx(), center = center)
+    }
 }
 
 @SuppressLint("MissingPermission")

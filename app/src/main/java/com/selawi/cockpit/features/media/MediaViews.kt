@@ -29,7 +29,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,7 +37,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.selawi.cockpit.core.design.CockpitCard
 import com.selawi.cockpit.core.design.CockpitColors
 import com.selawi.cockpit.core.design.CockpitIcons
@@ -49,10 +47,26 @@ import com.selawi.cockpit.core.design.SectionLabel
 import com.selawi.cockpit.core.design.Space
 import com.selawi.cockpit.core.platform.tryStart
 
+/** The three media actions, so screens do not depend on where playback is controlled. */
+class MediaControls(
+    val previous: () -> Unit,
+    val playPause: () -> Unit,
+    val next: () -> Unit,
+) {
+    companion object {
+        fun of(repo: MediaRepository) = MediaControls(repo::previous, repo::playPause, repo::next)
+        val None = MediaControls({}, {}, {})
+    }
+}
+
 /** Dashboard media panel: artwork, track and the three main controls. */
 @Composable
-fun MediaCard(repo: MediaRepository, modifier: Modifier = Modifier, compact: Boolean = false) {
-    val playing by repo.nowPlaying.collectAsStateWithLifecycle()
+fun MediaCard(
+    playing: NowPlaying,
+    controls: MediaControls,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+) {
     val context = LocalContext.current
     CockpitCard(modifier) {
         SectionLabel(if (playing.hasTrack) appLabel(context, playing.packageName) ?: "Now playing" else "Media")
@@ -70,7 +84,7 @@ fun MediaCard(repo: MediaRepository, modifier: Modifier = Modifier, compact: Boo
             TrackText(playing, Modifier.fillMaxWidth())
         }
         Spacer(Modifier.height(Space.m))
-        Controls(repo, playing.isPlaying, Modifier.fillMaxWidth())
+        Controls(controls, playing.isPlaying, Modifier.fillMaxWidth())
     }
 }
 
@@ -113,27 +127,31 @@ private fun TrackText(playing: NowPlaying, modifier: Modifier) {
 }
 
 @Composable
-private fun Controls(repo: MediaRepository, isPlaying: Boolean, modifier: Modifier) {
+private fun Controls(controls: MediaControls, isPlaying: Boolean, modifier: Modifier) {
     Row(modifier, horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
-        RoundIconButton(CockpitIcons.SkipPrevious, "Previous track") { repo.previous() }
+        RoundIconButton(CockpitIcons.SkipPrevious, "Previous track", onClick = controls.previous)
         RoundIconButton(
             if (isPlaying) CockpitIcons.Pause else CockpitIcons.Play,
             if (isPlaying) "Pause" else "Play",
             size = 80.dp,
             primary = true,
-        ) { repo.playPause() }
-        RoundIconButton(CockpitIcons.SkipNext, "Next track") { repo.next() }
+            onClick = controls.playPause,
+        )
+        RoundIconButton(CockpitIcons.SkipNext, "Next track", onClick = controls.next)
     }
 }
 
 /** Full media screen: large player plus how to get track details on this car. */
 @Composable
-fun MediaScreen(repo: MediaRepository) {
+fun MediaScreen(
+    playing: NowPlaying,
+    access: Boolean,
+    controls: MediaControls,
+    onAllowAccess: () -> Unit,
+) {
     val context = LocalContext.current
-    val access by repo.sessionAccess.collectAsStateWithLifecycle()
-    val playing by repo.nowPlaying.collectAsStateWithLifecycle()
     Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
-        MediaCard(repo, Modifier.weight(1f).fillMaxHeight())
+        MediaCard(playing, controls, Modifier.weight(1f).fillMaxHeight())
         Column(
             Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(Space.m),
@@ -150,7 +168,7 @@ fun MediaScreen(repo: MediaRepository) {
                 Text(status, style = MaterialTheme.typography.bodyLarge, color = CockpitColors.TextPrimary)
                 if (!access) {
                     Spacer(Modifier.height(Space.m))
-                    PillButton("Allow access to music apps") { NotificationAccess.open(context) }
+                    PillButton("Allow access to music apps", onClick = onAllowAccess)
                     Spacer(Modifier.height(Space.s))
                     Text(
                         "Spotify: turn on Settings → Device Broadcast Status. The cockpit then shows the " +

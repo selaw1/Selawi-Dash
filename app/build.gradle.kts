@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    // Renders screens to PNG on the build machine, so the design can be reviewed without the car.
+    alias(libs.plugins.paparazzi)
 }
 
 android {

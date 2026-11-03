@@ -35,6 +35,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,10 +51,16 @@ import com.selawi.cockpit.core.design.CockpitIcons
 import com.selawi.cockpit.core.design.CockpitTheme
 import com.selawi.cockpit.core.design.Space
 import com.selawi.cockpit.core.platform.hasLocationPermission
+import com.selawi.cockpit.core.platform.openCarHome
+import com.selawi.cockpit.core.platform.tryStart
+import com.selawi.cockpit.features.apps.AppInfo
 import com.selawi.cockpit.features.apps.AppsScreen
 import com.selawi.cockpit.features.assistant.AssistantScreen
 import com.selawi.cockpit.features.dashboard.DashboardActions
 import com.selawi.cockpit.features.dashboard.DashboardScreen
+import com.selawi.cockpit.features.dashboard.DashboardState
+import com.selawi.cockpit.features.media.MediaControls
+import com.selawi.cockpit.features.media.NotificationAccess
 import com.selawi.cockpit.features.media.MediaScreen
 import com.selawi.cockpit.features.navigation.MapScreen
 import com.selawi.cockpit.features.navigation.PhoneNavigation
@@ -69,6 +79,16 @@ enum class Destination(val label: String, val icon: ImageVector) {
 fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
     CockpitTheme {
         var destination by rememberSaveable { mutableStateOf(Destination.Home) }
+        val scope = rememberCoroutineScope()
+        val weather by app.weather.weather.collectAsStateWithLifecycle()
+        val playing by app.media.nowPlaying.collectAsStateWithLifecycle()
+        val access by app.media.sessionAccess.collectAsStateWithLifecycle()
+        val pinned by app.apps.pinned.collectAsStateWithLifecycle()
+        val allApps by app.apps.apps.collectAsStateWithLifecycle()
+        val fullScreen by app.settings.fullScreen.collectAsStateWithLifecycle(initialValue = true)
+        val keepOn by app.settings.keepScreenOn.collectAsStateWithLifecycle(initialValue = false)
+        val controls = remember { MediaControls.of(app.media) }
+        val openApp: (AppInfo) -> Unit = { activity.tryStart(app.apps.launch(it), "${it.label} could not be opened") }
 
         // Location makes the map follow the car and the weather local. The cockpit works without it.
         val locationRequest = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) {
@@ -80,49 +100,88 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
             }
         }
 
-        BoxWithConstraints(
-            Modifier
-                .fillMaxSize()
-                .background(CockpitColors.Background)
-                .safeDrawingPadding(),
-        ) {
-            // Beside DiAuto in split screen the window is roughly half the screen wide.
-            val compact = maxWidth < 840.dp
-            Row(Modifier.fillMaxSize()) {
-                NavigationRail(destination, compact) { destination = it }
+        CockpitFrame(destination, onSelect = { destination = it }) { compact ->
                 AnimatedContent(
                     targetState = destination,
                     transitionSpec = { fadeIn(tween(180)) togetherWith fadeOut(tween(120)) },
                     label = "destination",
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .padding(top = Space.m, end = Space.m, bottom = Space.m),
+                    modifier = Modifier.fillMaxSize(),
                 ) { target ->
                     when (target) {
                         Destination.Home -> DashboardScreen(
                             compact = compact,
-                            apps = app.apps,
-                            media = app.media,
-                            weather = app.weather,
+                            state = DashboardState(weather, playing, pinned),
+                            controls = controls,
                             actions = DashboardActions(
                                 onDriveMode = { PhoneNavigation.openBeside(activity) },
                                 onOpenMap = { destination = Destination.Map },
                                 onOpenApps = { destination = Destination.Apps },
                                 onOpenAssistant = { destination = Destination.Assistant },
+                                onOpenApp = openApp,
                             ),
                         )
                         Destination.Map -> MapScreen(
                             onDriveMode = { PhoneNavigation.openBeside(activity) },
                             onOpenPhoneNav = { PhoneNavigation.open(activity) },
                         )
-                        Destination.Media -> MediaScreen(app.media)
-                        Destination.Apps -> AppsScreen(app.apps)
+                        Destination.Media -> MediaScreen(
+                            playing = playing,
+                            access = access,
+                            controls = controls,
+                            onAllowAccess = { NotificationAccess.open(activity) },
+                        )
+                        Destination.Apps -> {
+                            LaunchedEffect(Unit) { app.apps.refresh() }
+                            AppsScreen(
+                                apps = allApps,
+                                pinned = pinned,
+                                onOpen = openApp,
+                                onTogglePin = app.apps::togglePinned,
+                                onCarHome = { activity.openCarHome() },
+                            )
+                        }
                         Destination.Assistant -> AssistantScreen()
-                        Destination.Settings -> SettingsScreen(app.settings, app.media)
+                        Destination.Settings -> SettingsScreen(
+                            fullScreen = fullScreen,
+                            keepOn = keepOn,
+                            access = access,
+                            onFullScreen = { scope.launch { app.settings.setFullScreen(it) } },
+                            onKeepOn = { scope.launch { app.settings.setKeepScreenOn(it) } },
+                            onAllowAccess = { NotificationAccess.open(activity) },
+                            onCarHome = { activity.openCarHome() },
+                        )
                     }
                 }
-            }
+        }
+    }
+}
+
+/**
+ * The cockpit frame: background, safe area and the left rail. Content gets whether the window is
+ * narrow (beside DiAuto in split screen).
+ */
+@Composable
+fun CockpitFrame(
+    selected: Destination,
+    onSelect: (Destination) -> Unit,
+    content: @Composable (compact: Boolean) -> Unit,
+) {
+    BoxWithConstraints(
+        Modifier
+            .fillMaxSize()
+            .background(CockpitColors.Background)
+            .safeDrawingPadding(),
+    ) {
+        // Beside DiAuto in split screen the window is roughly half the screen wide.
+        val compact = maxWidth < 840.dp
+        Row(Modifier.fillMaxSize()) {
+            NavigationRail(selected, compact, onSelect)
+            Box(
+                Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(top = Space.m, end = Space.m, bottom = Space.m),
+            ) { content(compact) }
         }
     }
 }
