@@ -69,3 +69,5 @@ jobs:
           }
           publish cockpit-latest selawi-cockpit.apk "Selawi Cockpit (latest test build)"
           publish probe-latest cockpit-probe.apk "Cockpit Probe (latest test build)"
+          (cd app/src/test/snapshots/images && zip -q ../../../../../cockpit-screenshots.zip *.png)
+          publish screenshots-latest cockpit-screenshots.zip "Cockpit screenshots (latest build)"
