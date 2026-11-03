@@ -108,7 +108,7 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
 @Composable
 private fun CompactDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit) {
     Column(Modifier.fillMaxSize().coverWash(state.playing)) {
-        VehiclePanel(state.driving, Modifier.fillMaxWidth().weight(1f))
+        VehiclePanel(state.driving, Modifier.fillMaxWidth().weight(1f), compact = true)
         Column(
             Modifier.padding(start = Space.l, end = Space.l, bottom = Space.m),
             verticalArrangement = Arrangement.spacedBy(Space.m),

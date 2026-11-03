@@ -36,7 +36,7 @@ import java.util.Locale
  * card, so the car stands in open space.
  */
 @Composable
-fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, carHeight: androidx.compose.ui.unit.Dp? = null) {
+fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, compact: Boolean = false) {
     val speed by animateIntAsState(state.speedKmh, tween(600), label = "speed")
     Column(
         modifier
@@ -50,7 +50,7 @@ fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, carHeight: 
                     blendMode = BlendMode.DstOut,
                 )
             }
-            .padding(start = 32.dp, end = 32.dp, top = 28.dp, bottom = 24.dp),
+            .padding(start = 32.dp, end = 32.dp, top = if (compact) 16.dp else 28.dp, bottom = if (compact) 4.dp else 24.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
@@ -67,17 +67,23 @@ fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, carHeight: 
                 )
             }
         }
+        // Narrow window (split screen): a smaller speed, so the car keeps its room.
         Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 6.dp)) {
-            Text("$speed", style = MaterialTheme.typography.displayLarge, color = CockpitColors.TextPrimary)
+            Text(
+                "$speed",
+                style = if (compact) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displayLarge,
+                color = CockpitColors.TextPrimary,
+            )
             Text(
                 "km/h",
                 style = MaterialTheme.typography.titleMedium,
                 color = CockpitColors.TextSecondary,
-                modifier = Modifier.padding(start = 10.dp, bottom = 14.dp),
+                modifier = Modifier.padding(start = 10.dp, bottom = if (compact) 8.dp else 14.dp),
             )
         }
-        val carModifier = if (carHeight != null) Modifier.fillMaxWidth().height(carHeight) else Modifier.fillMaxWidth().weight(1f)
-        Car3D(state, carModifier)
+        Car3D(state, Modifier.fillMaxWidth().weight(1f))
+        // The trip row is left out of the narrow layout; the full screen shows it.
+        if (compact) return@Column
         Spacer(Modifier.height(Space.m))
         Box(Modifier.fillMaxWidth().height(1.dp).background(CockpitColors.Stroke))
         Spacer(Modifier.height(Space.m))
