@@ -23,6 +23,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -62,13 +63,13 @@ fun DashboardScreen(compact: Boolean, state: DashboardState, controls: MediaCont
 @Composable
 private fun WideDashboard(state: DashboardState, controls: MediaControls) {
     val is24 = DateFormat.is24HourFormat(LocalContext.current)
-    Row(Modifier.fillMaxSize()) {
+    // The cover glow lies behind the whole screen; the car panel fades into it, so there is no seam.
+    Row(Modifier.fillMaxSize().coverWash(state.playing)) {
         VehiclePanel(state.driving, Modifier.width(500.dp).fillMaxHeight())
         Column(
             Modifier
                 .weight(1f)
                 .fillMaxHeight()
-                .coverWash(state.playing)
                 .padding(start = 32.dp, end = 32.dp, top = 28.dp, bottom = 20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp),
         ) {
@@ -98,13 +99,16 @@ private fun CompactDashboard(state: DashboardState, controls: MediaControls) {
 private fun Modifier.coverWash(playing: NowPlaying): Modifier {
     val tint = rememberCoverTint(playing)
     val strength = if (!playing.hasTrack) 0f else if (CockpitColors.isDark) 0.30f else 0.10f
-    return background(
-        Brush.radialGradient(
-            listOf(tint.copy(alpha = strength), Color.Transparent),
-            center = Offset(250f, 420f),
-            radius = 900f,
-        ),
-    )
+    // Centred on the music side and wide enough to drift softly over the car panel's fading edge.
+    return drawBehind {
+        drawRect(
+            Brush.radialGradient(
+                listOf(tint.copy(alpha = strength), tint.copy(alpha = strength * 0.35f), Color.Transparent),
+                center = Offset(size.width * 0.62f, size.height * 0.48f),
+                radius = size.width * 0.62f,
+            ),
+        )
+    }
 }
 
 /** Time and date on the left; current weather on the right. */

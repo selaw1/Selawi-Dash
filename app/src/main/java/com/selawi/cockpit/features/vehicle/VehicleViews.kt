@@ -20,7 +20,12 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import com.selawi.cockpit.core.design.CockpitColors
 import com.selawi.cockpit.core.design.Space
@@ -35,7 +40,16 @@ fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, carHeight: 
     val speed by animateIntAsState(state.speedKmh, tween(600), label = "speed")
     Column(
         modifier
-            .background(Brush.verticalGradient(listOf(CockpitColors.PanelTop, CockpitColors.PanelBottom)))
+            // Solid behind the speed and the car, fading out over the last third so the screen's
+            // background and the cover glow flow in without a hard edge.
+            .graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)
+            .drawBehind {
+                drawRect(Brush.verticalGradient(listOf(CockpitColors.PanelTop, CockpitColors.PanelBottom)))
+                drawRect(
+                    Brush.horizontalGradient(0.62f to Color.Transparent, 1f to Color.Black),
+                    blendMode = BlendMode.DstOut,
+                )
+            }
             .padding(start = 32.dp, end = 32.dp, top = 28.dp, bottom = 24.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
