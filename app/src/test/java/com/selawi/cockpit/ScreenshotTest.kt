@@ -8,6 +8,8 @@ import android.graphics.Paint
 import android.graphics.Shader
 import android.graphics.Typeface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.graphics.asImageBitmap
 import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
@@ -92,8 +94,11 @@ class ScreenshotTest {
 
     private fun shot(destination: Destination, content: @Composable (Boolean) -> Unit) {
         paparazzi.snapshot {
-            CockpitTheme {
-                CockpitFrame(destination, onSelect = {}) { compact -> content(compact) }
+            // Marks this as a preview, so the map draws its stand-in instead of the native engine.
+            CompositionLocalProvider(LocalInspectionMode provides true) {
+                CockpitTheme {
+                    CockpitFrame(destination, onSelect = {}) { compact -> content(compact) }
+                }
             }
         }
     }

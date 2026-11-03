@@ -57,20 +57,18 @@ import org.maplibre.android.maps.Style
 private const val STYLE = "https://tiles.openfreemap.org/styles/liberty"
 private val AMMAN = LatLng(31.9539, 35.9106)
 
-/** Free OpenStreetMap map that follows the car. Needs no Google services and no key. */
+/**
+ * Free OpenStreetMap map that follows the car. Needs no Google services and no key.
+ * Only [CarMap] calls this, so screenshot tests never load the native map engine.
+ */
 @Composable
-fun FreeMap(
-    modifier: Modifier = Modifier,
-    interactive: Boolean = true,
-    onMapReady: (MapLibreMap) -> Unit = {},
+internal fun FreeMap(
+    modifier: Modifier,
+    interactive: Boolean,
+    controller: MapController?,
 ) {
-    if (LocalInspectionMode.current) {
-        // Screenshot tests and previews cannot load the native map engine.
-        MapPlaceholder(modifier)
-        return
-    }
     val context = LocalContext.current
-    val mapView = remember { createMap(context, interactive, onMapReady) }
+    val mapView = remember { createMap(context, interactive, controller) }
     val lifecycle = LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
@@ -93,29 +91,8 @@ fun FreeMap(
     AndroidView(factory = { mapView }, modifier = modifier)
 }
 
-/** Stand-in drawn like a dim street grid, used where the real map cannot run. */
-@Composable
-private fun MapPlaceholder(modifier: Modifier) {
-    Canvas(modifier.background(Color(0xFFE8E4DC))) {
-        val step = 56.dp.toPx()
-        var x = 0f
-        while (x < size.width) {
-            drawLine(Color.White, Offset(x, 0f), Offset(x + size.height * 0.3f, size.height), strokeWidth = 10f)
-            x += step * 2.3f
-        }
-        var y = 0f
-        while (y < size.height) {
-            drawLine(Color.White, Offset(0f, y), Offset(size.width, y - size.width * 0.1f), strokeWidth = 8f)
-            y += step * 1.7f
-        }
-        drawLine(Color(0xFFF5C26B), Offset(0f, size.height * 0.62f), Offset(size.width, size.height * 0.38f), strokeWidth = 18f)
-        drawCircle(Color(0xFF3DDCFF), radius = 14.dp.toPx(), center = center)
-        drawCircle(Color.White, radius = 6.dp.toPx(), center = center)
-    }
-}
-
 @SuppressLint("MissingPermission")
-private fun createMap(context: Context, interactive: Boolean, onMapReady: (MapLibreMap) -> Unit): MapView {
+private fun createMap(context: Context, interactive: Boolean, controller: MapController?): MapView {
     MapLibre.getInstance(context)
     return MapView(context).apply {
         onCreate(null)
@@ -137,56 +114,18 @@ private fun createMap(context: Context, interactive: Boolean, onMapReady: (MapLi
                         location.cameraMode = CameraMode.TRACKING
                     }
                 }
-                onMapReady(map)
+                controller?.recenter = { recenter(map) }
             }
         }
     }
 }
 
-/** Full map screen with a recenter button and the phone navigation shortcut. */
-@Composable
-fun MapScreen(onDriveMode: () -> Unit, onOpenPhoneNav: () -> Unit) {
-    // Plain holder: the map object is not UI state and must survive recomposition.
-    val mapRef = remember { arrayOfNulls<MapLibreMap>(1) }
-    Row(Modifier.fillMaxSize(), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
-        Box(
-            Modifier
-                .weight(1f)
-                .fillMaxHeight()
-                .clip(RoundedCornerShape(Space.cardRadius)),
-        ) {
-            FreeMap(Modifier.fillMaxSize(), interactive = true) { mapRef[0] = it }
-            RoundIconButton(
-                CockpitIcons.MyLocation,
-                "Centre on the car",
-                modifier = Modifier.align(Alignment.BottomEnd).padding(Space.m),
-            ) {
-                mapRef[0]?.let { map ->
-                    runCatching {
-                        if (map.locationComponent.isLocationComponentActivated) {
-                            map.locationComponent.cameraMode = CameraMode.TRACKING
-                        } else {
-                            map.animateCamera(CameraUpdateFactory.newLatLng(AMMAN))
-                        }
-                    }
-                }
-            }
-        }
-        Column(Modifier.width(320.dp).fillMaxHeight(), verticalArrangement = Arrangement.spacedBy(Space.m)) {
-            ScreenTitle("Map")
-            CockpitCard(Modifier.fillMaxWidth()) {
-                SectionLabel("Navigate with your phone")
-                Spacer(Modifier.height(Space.s))
-                Text(
-                    "Google Maps runs on your phone and shows here through DiAuto.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = CockpitColors.TextSecondary,
-                )
-                Spacer(Modifier.height(Space.m))
-                PillButton("Drive mode", Modifier.fillMaxWidth(), icon = CockpitIcons.SplitScreen, primary = true, onClick = onDriveMode)
-                Spacer(Modifier.height(Space.s))
-                PillButton("Open DiAuto", Modifier.fillMaxWidth(), icon = CockpitIcons.Navigation, onClick = onOpenPhoneNav)
-            }
+private fun recenter(map: MapLibreMap) {
+    runCatching {
+        if (map.locationComponent.isLocationComponentActivated) {
+            map.locationComponent.cameraMode = CameraMode.TRACKING
+        } else {
+            map.animateCamera(CameraUpdateFactory.newLatLng(AMMAN))
         }
     }
 }

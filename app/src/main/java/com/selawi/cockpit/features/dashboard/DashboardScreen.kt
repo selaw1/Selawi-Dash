@@ -46,7 +46,7 @@ import com.selawi.cockpit.features.apps.AppTile
 import com.selawi.cockpit.features.media.MediaCard
 import com.selawi.cockpit.features.media.MediaControls
 import com.selawi.cockpit.features.media.NowPlaying
-import com.selawi.cockpit.features.navigation.FreeMap
+import com.selawi.cockpit.features.navigation.CarMap
 import com.selawi.cockpit.features.weather.Weather
 import kotlinx.coroutines.delay
 import java.time.LocalDateTime
@@ -168,7 +168,7 @@ private fun NavigationCard(actions: DashboardActions, modifier: Modifier) {
     CockpitCard(modifier, padding = 0.dp) {
         Box(Modifier.fillMaxSize()) {
             // Preview only; tap to open the full map.
-            FreeMap(Modifier.fillMaxSize(), interactive = false)
+            CarMap(Modifier.fillMaxSize(), interactive = false)
             Box(Modifier.fillMaxSize().clickable(onClick = actions.onOpenMap))
             Row(
                 Modifier
