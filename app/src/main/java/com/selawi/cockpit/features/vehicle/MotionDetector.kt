@@ -9,12 +9,16 @@ import android.os.SystemClock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.abs
+import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
 enum class Motion { Steady, Accelerating, Braking, HardBraking }
 
-/** [level] runs 0…1: how strongly the car is braking or accelerating. */
-data class MotionState(val motion: Motion = Motion.Steady, val level: Float = 0f)
+/**
+ * [level] runs 0…1: how strongly the car is braking or accelerating. [accel] is the forward
+ * acceleration in m/s² (negative while slowing), for the G-force meter.
+ */
+data class MotionState(val motion: Motion = Motion.Steady, val level: Float = 0f, val accel: Float = 0f)
 
 /**
  * Braking and acceleration. The car shares no pedal or brake-light signal with apps, so this
@@ -133,15 +137,20 @@ class MotionDetector(context: Context) {
             else -> Motion.Steady
         }
         val current = _state.value
+        // Rounded, so the screen only updates when the reading changes enough to see.
+        val shown = if (currentSpeedKmh < 3f) 0f else (accel / 0.2f).roundToInt() * 0.2f
         // Keep a state for at least half a second, so it never flickers.
-        if (motion != current.motion && now - motionSince < 500 && current.motion != Motion.Steady) return
+        if (motion != current.motion && now - motionSince < 500 && current.motion != Motion.Steady) {
+            if (shown != current.accel) _state.value = current.copy(accel = shown)
+            return
+        }
         if (motion != current.motion) motionSince = now
         val level = when (motion) {
             Motion.Steady -> 0f
             Motion.Accelerating -> ((accel - ACCELERATE) / 3f).coerceIn(0.2f, 1f)
             else -> ((-accel - BRAKE) / (HARD_BRAKE * 1.5f - BRAKE)).coerceIn(0.25f, 1f)
         }
-        _state.value = MotionState(motion, level)
+        _state.value = MotionState(motion, (level / 0.05f).roundToInt() * 0.05f, shown)
     }
 
     private companion object {

@@ -17,6 +17,14 @@ class SettingsStore(private val context: Context) {
     private val pinnedKey = stringPreferencesKey("pinned_apps")
     private val themeKey = stringPreferencesKey("theme")
     private val accentKey = androidx.datastore.preferences.core.intPreferencesKey("accent")
+    private val backdropKey = stringPreferencesKey("backdrop")
+
+    /** The home screen's background. */
+    val backdrop: Flow<Backdrop> = context.dataStore.data.map { prefs ->
+        prefs[backdropKey]?.let { runCatching { Backdrop.valueOf(it) }.getOrNull() } ?: Backdrop.CoverGlow
+    }
+
+    suspend fun setBackdrop(b: Backdrop) = context.dataStore.edit { it[backdropKey] = b.name }
 
     /** The driver's accent colour (ARGB), or null for the default blue. */
     val accent: Flow<Int?> = context.dataStore.data.map { it[accentKey] }
@@ -52,3 +60,13 @@ class SettingsStore(private val context: Context) {
 }
 
 enum class ThemeMode { Auto, Light, Dark }
+
+/** Home screen backgrounds: plain, the playing cover's colour, or a fixed soft gradient. */
+enum class Backdrop(val label: String) {
+    Plain("Plain"),
+    CoverGlow("Cover glow"),
+    Accent("Accent"),
+    Dusk("Dusk"),
+    Ocean("Ocean"),
+    Aurora("Aurora"),
+}

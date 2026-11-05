@@ -30,6 +30,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextMeasurer
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.rememberTextMeasurer
+import com.selawi.cockpit.features.weather.Sky
+import com.selawi.cockpit.features.weather.Weather
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalInspectionMode
@@ -46,7 +54,7 @@ import kotlin.math.sin
  * road and everything moves at the real GPS speed.
  */
 @Composable
-fun Car3D(state: DrivingState, modifier: Modifier = Modifier) {
+fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Modifier) {
     val control = remember { CarControl().also { it.drive = if (state.driving) 1f else 0f } }
     var touched by rememberSaveable { mutableStateOf(false) }
     val hint by animateFloatAsState(if (touched || state.driving) 0f else 1f, tween(600), label = "hint")
@@ -60,9 +68,15 @@ fun Car3D(state: DrivingState, modifier: Modifier = Modifier) {
     // Start from the current state, so a screenshot taken mid-brake shows the glow.
     var brake by remember { mutableFloatStateOf(brakeLevel(state.motion)) }
     var boost by remember { mutableFloatStateOf(if (state.motion.motion == Motion.Accelerating) state.motion.level else 0f) }
+    // The heading shown by the compass ring, turning smoothly between GPS fixes.
+    var compass by remember { mutableFloatStateOf(state.headingDeg ?: 0f) }
+    // Seconds since the scene started, for rain, snow and stars.
+    var clock by remember { mutableFloatStateOf(0f) }
     LaunchedEffect(control) {
         var last = 0L
         var lastHeading: Float? = null
+        var lastHeadingAt = 0f
+        var headingRate = 0f
         var turnRate = 0f
         while (true) {
             withFrameNanos { now ->
@@ -72,15 +86,28 @@ fun Car3D(state: DrivingState, modifier: Modifier = Modifier) {
                 // About 1.6 s from parked to driving and back.
                 val target = if (s.driving) 1f else 0f
                 drive += (target - drive).coerceIn(-dt / 1.6f, dt / 1.6f)
-                // Bend from the change in GPS heading, smoothed so the wheels never twitch.
+                clock += dt
+                // Bend from how fast the GPS heading turns (degrees per second between fixes),
+                // smoothed so the road and the wheels never twitch.
                 val heading = s.headingDeg
-                if (heading != null && lastHeading != null && dt > 0f) {
-                    val delta = ((heading - lastHeading!! + 540f) % 360f) - 180f
-                    turnRate += (delta * 4f - turnRate) * (1 - exp(-dt * 1.5f))
+                if (heading != null && heading != lastHeading) {
+                    val prev = lastHeading
+                    if (prev != null) {
+                        val delta = ((heading - prev + 540f) % 360f) - 180f
+                        headingRate = delta / (clock - lastHeadingAt).coerceIn(0.5f, 3f)
+                    }
+                    lastHeading = heading
+                    lastHeadingAt = clock
                 }
-                if (heading != lastHeading) lastHeading = heading
-                turnRate *= exp(-dt * 0.8f)
-                steer = (turnRate / 30f).coerceIn(-1f, 1f)
+                // No new heading for a while: the road is straight again.
+                if (clock - lastHeadingAt > 2.5f) headingRate = 0f
+                turnRate += (headingRate - turnRate) * (1 - exp(-dt * 2.5f))
+                // About 22° a second (a brisk city corner) bends the road fully.
+                steer = (turnRate / 22f).coerceIn(-1f, 1f)
+                if (heading != null) {
+                    val d = ((heading - compass + 540f) % 360f) - 180f
+                    compass = (compass + d * (1 - exp(-dt * 3f)) + 360f) % 360f
+                }
                 travel += s.speedKmh / 3.6f / CarScene.METRES_PER_UNIT * dt
                 // Eased over about a second, so speed changes feel like acceleration, not jumps.
                 speedFx += ((s.speedKmh / 120f).coerceIn(0f, 1f) - speedFx) * (1 - exp(-dt * 1.2f))
@@ -98,12 +125,25 @@ fun Car3D(state: DrivingState, modifier: Modifier = Modifier) {
         }
     }
 
+    val letters = rememberTextMeasurer()
+    val letterStyle = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+    val sky = weather?.sky
+    val isDay = weather?.isDay ?: true
     Box(modifier.clipToBounds()) {
-        Canvas(Modifier.fillMaxSize()) { drawScene(drive, travel, steer, speedFx, brake, boost) }
+        Canvas(Modifier.fillMaxSize()) {
+            val view = CarScene.view(size.width.toDouble() / size.height, drive, speedFx)
+            drawSky(view, sky, isDay, clock)
+            drawScene(view, drive, travel, steer, speedFx, brake, boost, wet = sky == Sky.Rain || sky == Sky.Storm)
+            drawCompass(view, compass, drive, letters, letterStyle)
+        }
         if (LocalInspectionMode.current) {
             CarStandIn(Modifier.fillMaxSize())
         } else {
             LiveCar(Modifier.fillMaxSize(), state.speedKmh, state.driving, control)
+        }
+        // Rain and snow fall in front of the car.
+        if (sky == Sky.Rain || sky == Sky.Storm || sky == Sky.Snow) {
+            Canvas(Modifier.fillMaxSize()) { drawPrecipitation(sky, clock, speedFx) }
         }
         // Touch layer above the 3D view: drag to turn the car, double-tap to face it front again.
         Box(
@@ -143,12 +183,20 @@ private const val ROAD_EDGE = 1.25
 private const val DASH = 0.55
 private const val GAP = 1.45
 
-/** Floor, contact shadow and, while driving, the road. Same camera as the 3D car. */
 private fun brakeLevel(m: MotionState) =
     if (m.motion == Motion.Braking || m.motion == Motion.HardBraking) m.level else 0f
 
-private fun DrawScope.drawScene(drive: Float, travel: Float, steer: Float, speed: Float, brake: Float, boost: Float) {
-    val view = CarScene.view(size.width.toDouble() / size.height, drive, speed)
+/** Floor, contact shadow and, while driving, the road. Same camera as the 3D car. */
+private fun DrawScope.drawScene(
+    view: CarScene.View,
+    drive: Float,
+    travel: Float,
+    steer: Float,
+    speed: Float,
+    brake: Float,
+    boost: Float,
+    wet: Boolean,
+) {
     fun p(x: Double, z: Double, y: Double = 0.0) = CarScene.project(view, x, y, z, size.width, size.height)
     val parked = 1f - drive
 
@@ -162,8 +210,8 @@ private fun DrawScope.drawScene(drive: Float, travel: Float, steer: Float, speed
     }
 
     if (drive > 0.01f) {
-        // A gentle bend in the road ahead when the car is turning.
-        val bend = steer * 0.012
+        // The road ahead bends the way the car is turning.
+        val bend = steer * 0.024
         fun roadX(x: Double, z: Double) = x + bend * z * z
         val near = 3.0
         val far = -46.0
@@ -206,6 +254,15 @@ private fun DrawScope.drawScene(drive: Float, travel: Float, steer: Float, speed
                 val b = p(roadX(x, z1), z1)
                 if (a != null && b != null) {
                     val fade = ((z0 - far) / (near - far)).toFloat().coerceIn(0f, 1f)
+                    // A wet road mirrors each dash as a soft smear below it.
+                    if (wet) {
+                        drawLine(
+                            CockpitColors.Accent.copy(alpha = 0.22f * drive * fade),
+                            a, Offset(a.x, a.y + (8f + 40f * fade) * density),
+                            strokeWidth = 4f + 12f * fade,
+                            cap = StrokeCap.Round,
+                        )
+                    }
                     drawLine(
                         CockpitColors.Accent.copy(alpha = 0.85f * drive * fade),
                         a, b,
@@ -281,6 +338,138 @@ private fun DrawScope.drawScene(drive: Float, travel: Float, steer: Float, speed
     shadow.close()
     val centre = p(0.0, 0.0) ?: Offset(size.width / 2, size.height / 2)
     drawPath(shadow, Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.45f), Color.Transparent), centre, size.width * 0.32f))
+}
+
+
+private const val RING = 1.7
+
+/** A compass on the road around the car while driving: ticks every 10°, N in the accent colour. */
+private fun DrawScope.drawCompass(view: CarScene.View, heading: Float, drive: Float, text: TextMeasurer, style: TextStyle) {
+    if (drive < 0.01f) return
+    // Driving, the car faces away from the camera (-z) and east is to its right (+x).
+    fun at(bearing: Float, r: Double): Offset? {
+        val a = Math.toRadians((bearing - heading).toDouble())
+        return CarScene.project(view, r * sin(a), 0.0, -r * cos(a), size.width, size.height)
+    }
+    val ring = Path()
+    var first = true
+    for (i in 0..90) {
+        val pt = at(i * 4f, RING) ?: continue
+        if (first) ring.moveTo(pt.x, pt.y) else ring.lineTo(pt.x, pt.y)
+        first = false
+    }
+    drawPath(ring, CockpitColors.TextTertiary.copy(alpha = 0.45f * drive), style = Stroke(1.5f * density))
+    for (deg in 0 until 360 step 10) {
+        val major = deg % 90 == 0
+        val inner = at(deg.toFloat(), RING - if (major) 0.22 else if (deg % 30 == 0) 0.14 else 0.07) ?: continue
+        val outer = at(deg.toFloat(), RING) ?: continue
+        val colour = if (deg == 0) CockpitColors.Accent else CockpitColors.TextSecondary
+        drawLine(colour.copy(alpha = (if (major) 0.9f else 0.5f) * drive), inner, outer, strokeWidth = (if (major) 2.5f else 1.2f) * density, cap = StrokeCap.Round)
+    }
+    for ((deg, name) in listOf(0 to "N", 90 to "E", 180 to "S", 270 to "W")) {
+        val pt = at(deg.toFloat(), RING + 0.32) ?: continue
+        val colour = if (deg == 0) CockpitColors.Accent else CockpitColors.TextSecondary
+        val layout = text.measure(name, style.copy(color = colour.copy(alpha = drive)))
+        drawText(layout, topLeft = Offset(pt.x - layout.size.width / 2f, pt.y - layout.size.height / 2f))
+    }
+}
+
+/** Repeatable "random" number 0…1, so drops and stars keep their places between frames. */
+private fun hash(i: Int, k: Int): Float {
+    val v = sin(i * 12.9898 + k * 78.233) * 43758.5453
+    return (v - kotlin.math.floor(v)).toFloat()
+}
+
+/**
+ * The sky over the road, from the live weather: sun glare on clear days, stars at night, a grey
+ * haze under cloud and rain, and fog that swallows the far road.
+ */
+private fun DrawScope.drawSky(view: CarScene.View, sky: Sky?, isDay: Boolean, clock: Float) {
+    if (sky == null) return
+    val horizon = CarScene.project(view, 0.0, 0.0, -90.0, size.width, size.height)?.y ?: (size.height * 0.4f)
+    val dark = CockpitColors.isDark
+    val clear = sky == Sky.Clear || sky == Sky.PartlyCloudy
+    if (clear && isDay) {
+        val strength = if (sky == Sky.Clear) 1f else 0.55f
+        val sun = Offset(size.width * 0.84f, horizon - size.height * 0.2f)
+        val warm = Color(0xFFFFD99A)
+        drawCircle(
+            Brush.radialGradient(listOf(warm.copy(alpha = (if (dark) 0.32f else 0.55f) * strength), Color.Transparent), sun, size.width * 0.55f),
+            radius = size.width * 0.55f,
+            center = sun,
+        )
+        drawCircle(warm.copy(alpha = 0.5f * strength), radius = 5f * density, center = sun)
+        // Lens flare: soft rings along the line from the sun through the middle.
+        val mid = Offset(size.width / 2f, size.height / 2f)
+        for ((t, r) in listOf(0.45f to 14f, 0.8f to 26f, 1.25f to 10f)) {
+            val c = sun + (mid - sun) * t
+            drawCircle(warm.copy(alpha = 0.10f * strength), radius = r * density, center = c)
+        }
+    } else if (clear) {
+        // Night: a deep blue glow on the horizon and a few twinkling stars above it.
+        drawRect(
+            Brush.verticalGradient(
+                listOf(Color.Transparent, Color(0xFF3B5BDB).copy(alpha = 0.22f), Color.Transparent),
+                startY = horizon - size.height * 0.3f,
+                endY = horizon + size.height * 0.12f,
+            ),
+        )
+        for (i in 0 until 26) {
+            val y = hash(i, 2) * (horizon - 12f * density)
+            if (y <= 0f) continue
+            val twinkle = 0.35f + 0.45f * (0.5f + 0.5f * sin(clock * (1.2f + 2f * hash(i, 3)) + i))
+            drawCircle(Color.White.copy(alpha = twinkle * 0.8f), radius = (0.8f + 1.2f * hash(i, 4)) * density, center = Offset(hash(i, 1) * size.width, y))
+        }
+    } else {
+        // Cloud, rain, storm, snow and fog: the horizon greys out.
+        val haze = (if (dark) Color(0xFF7A8494) else Color(0xFFA3ADBA)).copy(alpha = if (dark) 0.2f else 0.3f)
+        drawRect(
+            Brush.verticalGradient(
+                listOf(Color.Transparent, haze, Color.Transparent),
+                startY = horizon - size.height * 0.28f,
+                endY = horizon + size.height * 0.22f,
+            ),
+        )
+    }
+    if (sky == Sky.Fog) {
+        drawRect(
+            Brush.verticalGradient(
+                listOf(Color.Transparent, CockpitColors.Background.copy(alpha = 0.9f), CockpitColors.Background.copy(alpha = 0.0f)),
+                startY = horizon - size.height * 0.15f,
+                endY = horizon + size.height * 0.4f,
+            ),
+        )
+    }
+}
+
+/** Rain streaks (slanting more as the car speeds up), lightning in storms, drifting snow. */
+private fun DrawScope.drawPrecipitation(sky: Sky, clock: Float, speed: Float) {
+    val dark = CockpitColors.isDark
+    if (sky == Sky.Snow) {
+        val flake = if (dark) Color.White.copy(alpha = 0.75f) else Color(0xFF8A97A8).copy(alpha = 0.8f)
+        for (i in 0 until 70) {
+            val fall = 0.07f + 0.06f * hash(i, 3) + 0.25f * speed
+            val y = ((hash(i, 2) + clock * fall) % 1f) * size.height
+            val x = hash(i, 1) * size.width + sin(clock * 1.3f + hash(i, 5) * 6f) * 10f * density
+            drawCircle(flake, radius = (1.4f + 2f * hash(i, 4)) * density, center = Offset(x, y))
+        }
+        return
+    }
+    val drop = if (dark) Color(0xFFB8C4D6).copy(alpha = 0.3f) else Color(0xFF5B6B80).copy(alpha = 0.32f)
+    val slant = 0.12f + 0.55f * speed
+    val count = if (sky == Sky.Storm) 120 else 80
+    for (i in 0 until count) {
+        val fall = 1.3f + 0.8f * hash(i, 3)
+        val len = (14f + 20f * hash(i, 4)) * density
+        val y = ((hash(i, 2) + clock * fall) % 1f) * (size.height + len)
+        val x = hash(i, 1) * (size.width * (1f + slant)) - y * slant
+        drawLine(drop, Offset(x, y), Offset(x + len * slant, y - len), strokeWidth = 1.3f * density, cap = StrokeCap.Round)
+    }
+    if (sky == Sky.Storm) {
+        // Two quick flashes every seven seconds.
+        val t = clock % 7f
+        if (t < 0.07f || t in 0.16f..0.21f) drawRect(Color.White.copy(alpha = 0.22f))
+    }
 }
 
 /** Simple drawn car for screenshot tests, where the 3D engine cannot run. */

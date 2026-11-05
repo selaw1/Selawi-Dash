@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -24,7 +25,17 @@ import com.selawi.cockpit.core.design.PillButton
 import com.selawi.cockpit.core.design.ScreenTitle
 import com.selawi.cockpit.core.design.SectionLabel
 import com.selawi.cockpit.core.design.Space
+import com.selawi.cockpit.data.local.Backdrop
 import com.selawi.cockpit.data.local.ThemeMode
+import com.selawi.cockpit.features.dashboard.drawBackdrop
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 
 class SettingsState(
     val fullScreen: Boolean,
@@ -34,6 +45,7 @@ class SettingsState(
     val accent: androidx.compose.ui.graphics.Color? = null,
     val coverStatus: String = "",
     val motionSource: String = "",
+    val backdrop: Backdrop = Backdrop.CoverGlow,
 )
 
 class SettingsActions(
@@ -46,6 +58,7 @@ class SettingsActions(
     val onShareCrash: () -> Unit = {},
     val onClearCrash: () -> Unit = {},
     val onAccent: (androidx.compose.ui.graphics.Color?, Boolean) -> Unit = { _, _ -> },
+    val onBackdrop: (Backdrop) -> Unit = {},
 )
 
 @Composable
@@ -87,6 +100,21 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
             )
             Spacer(Modifier.height(Space.m))
             AccentPicker(state.accent, actions.onAccent)
+        }
+        CockpitCard(Modifier.fillMaxWidth()) {
+            SectionLabel("Background")
+            Spacer(Modifier.height(Space.s))
+            Text(
+                "Behind the home screen. Cover glow follows the colours of the song that is playing.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = CockpitColors.TextSecondary,
+            )
+            Spacer(Modifier.height(Space.m))
+            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(Space.m)) {
+                Backdrop.entries.forEach { b ->
+                    BackdropSwatch(b, selected = b == state.backdrop) { actions.onBackdrop(b) }
+                }
+            }
         }
         CockpitCard(Modifier.fillMaxWidth()) {
             SectionLabel("Car")
@@ -172,3 +200,30 @@ private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChang
         )
     }
 }
+
+/** A small preview of a background, outlined in the accent when chosen. */
+@Composable
+private fun BackdropSwatch(backdrop: Backdrop, selected: Boolean, onClick: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    val accent = CockpitColors.Accent
+    val strength = if (CockpitColors.isDark) 0.55f else 0.25f
+    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(
+            Modifier
+                .size(width = 112.dp, height = 64.dp)
+                .clip(shape)
+                .background(CockpitColors.Background)
+                .drawBehind { drawBackdrop(backdrop, SampleCoverTint, accent, strength) }
+                .border(if (selected) 3.dp else 1.dp, if (selected) accent else CockpitColors.Stroke, shape)
+                .clickable(onClick = onClick),
+        )
+        Text(
+            backdrop.label,
+            style = MaterialTheme.typography.labelMedium,
+            color = if (selected) CockpitColors.TextPrimary else CockpitColors.TextSecondary,
+        )
+    }
+}
+
+/** Stands in for a song's cover colour in the Cover glow preview. */
+private val SampleCoverTint = androidx.compose.ui.graphics.Color(0xFFE0457B)

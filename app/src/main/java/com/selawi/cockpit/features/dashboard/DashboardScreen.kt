@@ -33,6 +33,8 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import com.selawi.cockpit.data.local.Backdrop
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.selawi.cockpit.core.design.CockpitColors
@@ -59,6 +61,7 @@ class DashboardState(
     val call: CallInfo = CallInfo(),
     /** Fixed time for screenshots; null shows the live clock. */
     val fixedTime: LocalDateTime? = null,
+    val backdrop: Backdrop = Backdrop.CoverGlow,
 )
 
 @Composable
@@ -83,8 +86,8 @@ private fun CallSlot(call: CallInfo, onOpenPhone: () -> Unit) {
 private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit) {
     val is24 = DateFormat.is24HourFormat(LocalContext.current)
     // The cover glow lies behind the whole screen; the car panel fades into it, so there is no seam.
-    Row(Modifier.fillMaxSize().coverWash(state.playing)) {
-        VehiclePanel(state.driving, Modifier.width(500.dp).fillMaxHeight())
+    Row(Modifier.fillMaxSize().backdrop(state.backdrop, state.playing)) {
+        VehiclePanel(state.driving, Modifier.width(500.dp).fillMaxHeight(), weather = state.weather)
         Column(
             Modifier
                 .weight(1f)
@@ -107,8 +110,8 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
  */
 @Composable
 private fun CompactDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit) {
-    Column(Modifier.fillMaxSize().coverWash(state.playing)) {
-        VehiclePanel(state.driving, Modifier.fillMaxWidth().weight(1f), compact = true)
+    Column(Modifier.fillMaxSize().backdrop(state.backdrop, state.playing)) {
+        VehiclePanel(state.driving, Modifier.fillMaxWidth().weight(1f), compact = true, weather = state.weather)
         Column(
             Modifier.padding(start = Space.l, end = Space.l, bottom = Space.m),
             verticalArrangement = Arrangement.spacedBy(Space.m),
@@ -119,20 +122,47 @@ private fun CompactDashboard(state: DashboardState, controls: MediaControls, onO
     }
 }
 
-/** At night, the cover's colour washes softly across the background, as in the mockup. */
+/** The chosen background, drawn softly behind the whole home screen. */
 @Composable
-private fun Modifier.coverWash(playing: NowPlaying): Modifier {
+private fun Modifier.backdrop(backdrop: Backdrop, playing: NowPlaying): Modifier {
     val tint = rememberCoverTint(playing)
-    val strength = if (!playing.hasTrack) 0f else if (CockpitColors.isDark) 0.30f else 0.10f
-    // Centred on the music side and wide enough to drift softly over the car panel's fading edge.
-    return drawBehind {
-        drawRect(
-            Brush.radialGradient(
-                listOf(tint.copy(alpha = strength), tint.copy(alpha = strength * 0.35f), Color.Transparent),
-                center = Offset(size.width * 0.62f, size.height * 0.48f),
-                radius = size.width * 0.62f,
-            ),
-        )
+    val accent = CockpitColors.Accent
+    val dark = CockpitColors.isDark
+    // The cover glow only shows while something is playing.
+    val strength = if (backdrop == Backdrop.CoverGlow && !playing.hasTrack) 0f else if (dark) 0.30f else 0.10f
+    return drawBehind { drawBackdrop(backdrop, tint, accent, strength) }
+}
+
+/**
+ * Soft colour washes. Centred on the music side and wide enough to drift over the car panel's
+ * fading edge, so there is no seam. Also used for the previews in Settings.
+ */
+fun DrawScope.drawBackdrop(backdrop: Backdrop, coverTint: Color, accent: Color, strength: Float) {
+    if (strength <= 0f) return
+    fun blob(colour: Color, x: Float, y: Float, r: Float, k: Float = 1f) = drawRect(
+        Brush.radialGradient(
+            listOf(colour.copy(alpha = strength * k), colour.copy(alpha = strength * k * 0.35f), Color.Transparent),
+            center = Offset(size.width * x, size.height * y),
+            radius = size.width * r,
+        ),
+    )
+    when (backdrop) {
+        Backdrop.Plain -> Unit
+        Backdrop.CoverGlow -> blob(coverTint, 0.62f, 0.48f, 0.62f)
+        Backdrop.Accent -> blob(accent, 0.62f, 0.48f, 0.62f)
+        Backdrop.Dusk -> {
+            blob(Color(0xFF7C3AED), 0.78f, 0.1f, 0.55f)
+            blob(Color(0xFFF97316), 0.42f, 1.05f, 0.5f, 0.8f)
+        }
+        Backdrop.Ocean -> {
+            blob(Color(0xFF14B8A6), 0.82f, 0.12f, 0.5f)
+            blob(Color(0xFF2563EB), 0.4f, 1.0f, 0.55f)
+        }
+        Backdrop.Aurora -> {
+            blob(Color(0xFF22C55E), 0.3f, 0.0f, 0.5f, 0.8f)
+            blob(Color(0xFF06B6D4), 0.7f, 0.2f, 0.45f)
+            blob(Color(0xFFA855F7), 0.9f, 0.95f, 0.45f, 0.8f)
+        }
     }
 }
 

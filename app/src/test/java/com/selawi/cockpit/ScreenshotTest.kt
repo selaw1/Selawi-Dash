@@ -28,6 +28,7 @@ import com.selawi.cockpit.features.media.NowPlaying
 import com.selawi.cockpit.features.settings.SettingsActions
 import com.selawi.cockpit.features.settings.SettingsScreen
 import com.selawi.cockpit.features.settings.SettingsState
+import com.selawi.cockpit.data.local.Backdrop
 import com.selawi.cockpit.data.local.ThemeMode
 import com.selawi.cockpit.features.vehicle.DrivingState
 import com.selawi.cockpit.features.vehicle.Motion
@@ -59,7 +60,17 @@ class ScreenshotTest {
 
     @Test
     fun dashboardBraking() = shot(Destination.Home) { compact ->
-        Dashboard(compact, DrivingState(speedKmh = 41, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96), motion = MotionState(Motion.Braking, 0.8f)))
+        Dashboard(compact, DrivingState(speedKmh = 41, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96), motion = MotionState(Motion.Braking, 0.8f, -4.2f), lateral = 1.4f))
+    }
+
+    @Test
+    fun dashboardRainNight() = shot(Destination.Home) { compact ->
+        Dashboard(compact, moving.copy(lateral = -2f), sky = Sky.Rain, isDay = false, backdrop = Backdrop.Ocean)
+    }
+
+    @Test
+    fun dashboardSnowDusk() = shot(Destination.Home) { compact ->
+        Dashboard(compact, parked, sky = Sky.Snow, isDay = false, backdrop = Backdrop.Dusk)
     }
 
     @Test
@@ -103,12 +114,18 @@ class ScreenshotTest {
     private val moving = DrivingState(speedKmh = 62, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96))
 
     @Composable
-    private fun Dashboard(compact: Boolean, driving: DrivingState) {
+    private fun Dashboard(
+        compact: Boolean,
+        driving: DrivingState,
+        sky: Sky = Sky.Clear,
+        isDay: Boolean = true,
+        backdrop: Backdrop = Backdrop.CoverGlow,
+    ) {
         DashboardScreen(
             compact = compact,
             state = DashboardState(
                 weather = Weather(
-                    27, 31, 18, "Mostly clear", isDay = true, place = "Amman", sky = Sky.Clear,
+                    27, 31, 18, if (sky == Sky.Clear) "Mostly clear" else sky.name, isDay = isDay, place = "Amman", sky = sky,
                     hours = listOf(
                         HourForecast(LocalTime.of(14, 0), 28, Sky.Clear, true),
                         HourForecast(LocalTime.of(15, 0), 28, Sky.PartlyCloudy, true),
@@ -123,6 +140,7 @@ class ScreenshotTest {
                 playing = playing,
                 driving = driving,
                 fixedTime = LocalDateTime.of(2026, 11, 3, 12, 51),
+                backdrop = backdrop,
             ),
             controls = MediaControls.None,
         )

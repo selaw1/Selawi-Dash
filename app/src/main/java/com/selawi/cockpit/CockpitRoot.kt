@@ -53,11 +53,13 @@ import com.selawi.cockpit.core.platform.CrashLog
 import com.selawi.cockpit.core.platform.hasLocationPermission
 import com.selawi.cockpit.core.platform.openCarHome
 import com.selawi.cockpit.core.platform.tryStart
+import com.selawi.cockpit.data.local.Backdrop
 import com.selawi.cockpit.data.local.ThemeMode
 import com.selawi.cockpit.features.apps.AppInfo
 import com.selawi.cockpit.features.apps.AppsScreen
 import com.selawi.cockpit.features.dashboard.DashboardScreen
 import com.selawi.cockpit.features.dashboard.DashboardState
+import com.selawi.cockpit.features.intro.StartupIntro
 import com.selawi.cockpit.features.media.MediaControls
 import com.selawi.cockpit.features.settings.SettingsActions
 import com.selawi.cockpit.features.settings.SettingsScreen
@@ -108,6 +110,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         val call by app.calls.call.collectAsStateWithLifecycle()
         val coverStatus by app.media.coverStatus.collectAsStateWithLifecycle()
         val motionSource by app.driving.motion.source.collectAsStateWithLifecycle()
+        val backdrop by app.settings.backdrop.collectAsStateWithLifecycle(initialValue = Backdrop.CoverGlow)
         val fullScreen by app.settings.fullScreen.collectAsStateWithLifecycle(initialValue = true)
         val keepOn by app.settings.keepScreenOn.collectAsStateWithLifecycle(initialValue = false)
         var crash by remember { mutableStateOf(CrashLog.read(activity)) }
@@ -137,58 +140,62 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         }
         val openApp: (AppInfo) -> Unit = { activity.tryStart(app.apps.launch(it), "${it.label} could not be opened") }
 
-        DashFrame(destination, onSelect = { destination = it }, pinned = pinned, onOpenApp = openApp) { compact ->
-            AnimatedContent(
-                targetState = destination,
-                transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) },
-                label = "destination",
-                modifier = Modifier.fillMaxSize(),
-            ) { target ->
-                when (target) {
-                    Destination.Home -> DashboardScreen(
-                        compact = compact,
-                        state = DashboardState(weather, playing, driving, call),
-                        controls = controls,
-                        onOpenPhone = app.calls::openPhone,
-                    )
-                    Destination.Apps -> Box(Modifier.padding(Space.l)) {
-                        LaunchedEffect(Unit) { app.apps.refresh() }
-                        AppsScreen(
-                            apps = allApps,
-                            pinned = pinned,
-                            onOpen = openApp,
-                            onTogglePin = app.apps::togglePinned,
-                            onCarHome = { activity.openCarHome() },
+        Box(Modifier.fillMaxSize()) {
+            DashFrame(destination, onSelect = { destination = it }, pinned = pinned, onOpenApp = openApp) { compact ->
+                AnimatedContent(
+                    targetState = destination,
+                    transitionSpec = { fadeIn(tween(200)) togetherWith fadeOut(tween(120)) },
+                    label = "destination",
+                    modifier = Modifier.fillMaxSize(),
+                ) { target ->
+                    when (target) {
+                        Destination.Home -> DashboardScreen(
+                            compact = compact,
+                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop),
+                            controls = controls,
+                            onOpenPhone = app.calls::openPhone,
                         )
+                        Destination.Apps -> Box(Modifier.padding(Space.l)) {
+                            LaunchedEffect(Unit) { app.apps.refresh() }
+                            AppsScreen(
+                                apps = allApps,
+                                pinned = pinned,
+                                onOpen = openApp,
+                                onTogglePin = app.apps::togglePinned,
+                                onCarHome = { activity.openCarHome() },
+                            )
+                        }
+                        Destination.Settings -> Box(Modifier.padding(Space.l)) { SettingsScreen(
+                            state = SettingsState(fullScreen, keepOn, themeMode, crash, accent, coverStatus, motionSource, backdrop),
+                            actions = SettingsActions(
+                                onFullScreen = { scope.launch { app.settings.setFullScreen(it) } },
+                                onKeepOn = { scope.launch { app.settings.setKeepScreenOn(it) } },
+                                onTheme = { scope.launch { app.settings.setTheme(it) } },
+                                onCarHome = { activity.openCarHome() },
+                                onChooseCar = { carPicker.launch(arrayOf("*/*")) },
+                                onDefaultCar = { CarModel.customFile(activity).delete() },
+                                onShareCrash = {
+                                    crash?.let { text ->
+                                        val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+                                        activity.tryStart(Intent.createChooser(send, "Share problem report"), "No app can share text")
+                                    }
+                                },
+                                onClearCrash = {
+                                    CrashLog.clear(activity)
+                                    crash = null
+                                },
+                                onBackdrop = { scope.launch { app.settings.setBackdrop(it) } },
+                                onAccent = { color, final ->
+                                    previewing = true
+                                    previewAccent = color
+                                    if (final) scope.launch { app.settings.setAccent(color?.toArgb()) }
+                                },
+                            ),
+                        ) }
                     }
-                    Destination.Settings -> Box(Modifier.padding(Space.l)) { SettingsScreen(
-                        state = SettingsState(fullScreen, keepOn, themeMode, crash, accent, coverStatus, motionSource),
-                        actions = SettingsActions(
-                            onFullScreen = { scope.launch { app.settings.setFullScreen(it) } },
-                            onKeepOn = { scope.launch { app.settings.setKeepScreenOn(it) } },
-                            onTheme = { scope.launch { app.settings.setTheme(it) } },
-                            onCarHome = { activity.openCarHome() },
-                            onChooseCar = { carPicker.launch(arrayOf("*/*")) },
-                            onDefaultCar = { CarModel.customFile(activity).delete() },
-                            onShareCrash = {
-                                crash?.let { text ->
-                                    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
-                                    activity.tryStart(Intent.createChooser(send, "Share problem report"), "No app can share text")
-                                }
-                            },
-                            onClearCrash = {
-                                CrashLog.clear(activity)
-                                crash = null
-                            },
-                            onAccent = { color, final ->
-                                previewing = true
-                                previewAccent = color
-                                if (final) scope.launch { app.settings.setAccent(color?.toArgb()) }
-                            },
-                        ),
-                    ) }
                 }
             }
+            StartupIntro()
         }
     }
 }

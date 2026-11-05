@@ -29,6 +29,8 @@ data class DrivingState(
     val headingDeg: Float? = null,
     val trip: Trip = Trip(),
     val motion: MotionState = MotionState(),
+    /** Sideways acceleration in m/s² from speed and the change in heading; positive turning right. */
+    val lateral: Float = 0f,
 )
 
 /**
@@ -52,6 +54,7 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
     private var lastFix: Location? = null
     private var lastFixAt = 0L
     private var lastMovingAt = 0L
+    private var lateral = 0f
 
     // All methods overridden: before Android 11 they have no default implementations.
     private val listener = object : LocationListener {
@@ -79,7 +82,8 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
         lm.removeUpdates(listener)
         listening = false
         lastFix = null
-        _state.value = _state.value.copy(speedKmh = 0, driving = false, motion = MotionState())
+        lateral = 0f
+        _state.value = _state.value.copy(speedKmh = 0, driving = false, motion = MotionState(), lateral = 0f)
     }
 
     private fun update(location: Location) {
@@ -112,11 +116,23 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
         }
         if (kmh >= 3) lastMovingAt = now
         if (kmh > trip.maxKmh && location.accuracy < 30f) trip = trip.copy(maxKmh = kmh)
+        val previousFixAt = lastFixAt
         lastFix = location
         lastFixAt = now
 
         val heading = if (location.hasBearing() && kmh >= 5) location.bearing else current.headingDeg
-        _state.value = DrivingState(kmh, driving, heading, trip, _state.value.motion)
+        // Cornering force: speed times how fast the heading turns (v·ω), smoothed over fixes.
+        val lastHeading = current.headingDeg
+        val dtFix = (now - previousFixAt) / 1000f
+        val turn = if (heading != null && lastHeading != null && kmh >= 5 && dtFix in 0.4f..3f) {
+            val delta = ((heading - lastHeading + 540f) % 360f) - 180f
+            mps * Math.toRadians((delta / dtFix).toDouble()).toFloat()
+        } else {
+            0f
+        }
+        lateral = (lateral * 0.4f + turn.coerceIn(-12f, 12f) * 0.6f)
+        val shownLateral = (lateral / 0.2f).roundToInt() * 0.2f
+        _state.value = DrivingState(kmh, driving, heading, trip, _state.value.motion, shownLateral)
     }
 
     private companion object {

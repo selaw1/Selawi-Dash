@@ -11,6 +11,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.animation.core.animateIntAsState
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -46,7 +47,12 @@ import java.util.Locale
  * card, so the car stands in open space.
  */
 @Composable
-fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, compact: Boolean = false) {
+fun VehiclePanel(
+    state: DrivingState,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false,
+    weather: com.selawi.cockpit.features.weather.Weather? = null,
+) {
     val speed by animateIntAsState(state.speedKmh, tween(600), label = "speed")
     Column(
         modifier
@@ -79,7 +85,7 @@ fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, compact: Bo
             MotionTag(state.motion)
         }
         // Narrow window (split screen): a smaller speed, so the car keeps its room.
-        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 6.dp)) {
+        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
             // The speed turns brake-red while the car slows hard enough to count as braking.
             val braking = state.motion.motion == Motion.Braking || state.motion.motion == Motion.HardBraking
             val speedColor by animateColorAsState(if (braking) BrakeRed else CockpitColors.TextPrimary, tween(200), label = "speedColour")
@@ -94,8 +100,10 @@ fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, compact: Bo
                 color = CockpitColors.TextSecondary,
                 modifier = Modifier.padding(start = 10.dp, bottom = if (compact) 8.dp else 14.dp),
             )
+            Spacer(Modifier.weight(1f))
+            GForceMeter(state, Modifier.padding(bottom = 4.dp), if (compact) 64.dp else 84.dp)
         }
-        Car3D(state, Modifier.fillMaxWidth().weight(1f))
+        Car3D(state, weather, Modifier.fillMaxWidth().weight(1f))
         // The trip row is left out of the narrow layout; the full screen shows it.
         if (compact) return@Column
         Spacer(Modifier.height(Space.m))
@@ -110,6 +118,43 @@ fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, compact: Bo
         }
     }
 }
+
+/**
+ * G-force: the dot moves the way the body is pushed. Up when braking, down when accelerating,
+ * outwards in corners. The outer ring is 0.8 g, about as hard as a road car brakes.
+ */
+@Composable
+private fun GForceMeter(state: DrivingState, modifier: Modifier, size: androidx.compose.ui.unit.Dp) {
+    val g = 9.81f
+    val forward = if (state.driving) state.motion.accel / g else 0f
+    val side = if (state.driving) state.lateral / g else 0f
+    val x by animateFloatAsState((-side / MAX_G).coerceIn(-1f, 1f), tween(350), label = "gx")
+    val y by animateFloatAsState((forward / MAX_G).coerceIn(-1f, 1f), tween(350), label = "gy")
+    val braking = state.motion.motion == Motion.Braking || state.motion.motion == Motion.HardBraking
+    val dot by animateColorAsState(if (braking) BrakeRed else CockpitColors.Accent, tween(200), label = "gColour")
+    val ring = CockpitColors.TextTertiary
+    val total = kotlin.math.sqrt(forward * forward + side * side)
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Canvas(Modifier.size(size)) {
+            val r = this.size.minDimension / 2f
+            drawCircle(ring.copy(alpha = 0.5f), radius = r - density, style = Stroke(1.5f * density))
+            drawCircle(ring.copy(alpha = 0.3f), radius = r / 2f, style = Stroke(density))
+            drawLine(ring.copy(alpha = 0.3f), Offset(center.x - r, center.y), Offset(center.x + r, center.y), strokeWidth = density)
+            drawLine(ring.copy(alpha = 0.3f), Offset(center.x, center.y - r), Offset(center.x, center.y + r), strokeWidth = density)
+            // Braking pushes you forward: the dot moves up the screen.
+            val p = Offset(center.x + x * (r - 6f * density), center.y + y * (r - 6f * density))
+            drawCircle(Brush.radialGradient(listOf(dot.copy(alpha = 0.45f), Color.Transparent), p, 14f * density), radius = 14f * density, center = p)
+            drawCircle(dot, radius = 5f * density, center = p)
+        }
+        Text(
+            String.format(Locale.US, "%.2f g", total),
+            style = MaterialTheme.typography.labelSmall,
+            color = CockpitColors.TextSecondary,
+        )
+    }
+}
+
+private const val MAX_G = 0.8f
 
 /** Brake-light red, the same by day and night so it always reads as braking. */
 val BrakeRed = Color(0xFFFF3B3B)

@@ -161,6 +161,8 @@ private class CarRenderer(
     private val wheels = mutableListOf<Wheel>()
     private val brakeLights = mutableListOf<MaterialInstance>()
     private var shownBrake = -1f
+    private val headlights = mutableListOf<MaterialInstance>()
+    private var shownHeadlights = -1f
     private var yawDeg = FRONT_YAW
     private var aspect = 1.6
     private var clock = 0f
@@ -365,9 +367,10 @@ private class CarRenderer(
             tm.setTransform(w.instance, m)
         }
         lightBrakes(control.brake.coerceIn(0f, 1f))
+        lightHeadlights(com.selawi.cockpit.features.intro.Intro.headlights())
     }
 
-    /** The model's rear light materials, so they can glow when the car brakes. */
+    /** The model's brake and head light materials, so they can light up. */
     private fun findBrakeLights(loaded: FilamentAsset) {
         val rm = engine.renderableManager
         for (entity in loaded.renderableEntities) {
@@ -375,9 +378,20 @@ private class CarRenderer(
             for (prim in 0 until rm.getPrimitiveCount(instance)) {
                 val material = rm.getMaterialInstanceAt(instance, prim)
                 if (material.name.equals("Brakelight", ignoreCase = true) && material !in brakeLights) brakeLights += material
+                if (material.name.equals("Headlight", ignoreCase = true) && material !in headlights) headlights += material
             }
         }
         lightBrakes(0f)
+    }
+
+    /** Cool white headlights; the start-up intro flicks them on. */
+    private fun lightHeadlights(level: Float) {
+        if (headlights.isEmpty() || abs(level - shownHeadlights) < 0.01f) return
+        shownHeadlights = level
+        val k = 0.03f + level * 0.97f
+        for (m in headlights) {
+            runCatching { m.setParameter("emissiveFactor", 0.54f * k, 0.74f * k, 1f * k) }
+        }
     }
 
     /** Dim tail lights at rest, bright red the harder the car brakes. */
