@@ -16,6 +16,8 @@ adb logcat -d > logcat.txt
 if grep -E "FATAL EXCEPTION|Fatal signal" -A 25 logcat.txt | grep -q "$PKG"; then
   echo "The app crashed:"
   grep -E "FATAL EXCEPTION|Fatal signal" -A 40 logcat.txt
+  echo "--- 3D engine and graphics messages ---"
+  grep -i -E "filament|abort message|panic|egl|gles|opengl|precondition|postcondition" logcat.txt | head -60
   exit 1
 fi
 if ! adb shell pidof "$PKG" >/dev/null; then
