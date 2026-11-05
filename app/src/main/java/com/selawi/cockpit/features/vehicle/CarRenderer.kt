@@ -210,9 +210,7 @@ private class CarRenderer(
             clear = true
             clearColor = floatArrayOf(0f, 0f, 0f, 0f)
         }
-        // FXAA smooths edges on the car's graphics chip. The build server's emulator draws in
-        // software and cannot compile that effect, so it is left out there only.
-        view.antiAliasing = if (isEmulator()) View.AntiAliasing.NONE else View.AntiAliasing.FXAA
+        view.antiAliasing = View.AntiAliasing.FXAA
 
         sun = EntityManager.get().create()
         LightManager.Builder(LightManager.Type.SUN)
@@ -577,10 +575,6 @@ private class CarRenderer(
         val WHEEL_NODES = listOf("WheelFrontL", "WheelFrontR", "WheelRearL", "WheelRearR")
     }
 }
-
-/** True on Android's emulator (used by the automatic test), never on a real head unit. */
-private fun isEmulator() = android.os.Build.FINGERPRINT.contains("generic") ||
-    android.os.Build.FINGERPRINT.contains("emulator") || android.os.Build.HARDWARE.contains("ranchu")
 
 /** Loads Filament's native libraries once per process. */
 private object Native {
