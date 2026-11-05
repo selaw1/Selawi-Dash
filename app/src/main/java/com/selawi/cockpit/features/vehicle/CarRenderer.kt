@@ -210,9 +210,11 @@ private class CarRenderer(
             clear = true
             clearColor = floatArrayOf(0f, 0f, 0f, 0f)
         }
-        // FXAA smooths edges on the car's graphics chip. The build server's emulator draws in
-        // software and cannot compile that effect, so it is left out there only.
-        view.antiAliasing = if (isEmulator()) View.AntiAliasing.NONE else View.AntiAliasing.FXAA
+        view.antiAliasing = View.AntiAliasing.FXAA
+        // The build server's emulator draws in software and cannot compile the engine's
+        // after-effects (edge smoothing, final copy), so they are left out there only. Real head
+        // units keep them.
+        if (isEmulator()) view.isPostProcessingEnabled = false
 
         sun = EntityManager.get().create()
         LightManager.Builder(LightManager.Type.SUN)
