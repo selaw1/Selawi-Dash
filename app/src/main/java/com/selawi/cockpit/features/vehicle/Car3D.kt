@@ -28,6 +28,9 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -130,9 +133,13 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
     val sky = weather?.sky
     val isDay = weather?.isDay ?: true
     Box(modifier.clipToBounds()) {
+        // Sky and weather fade out towards the top, so they never end in a hard line.
+        Canvas(Modifier.fillMaxSize().graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
+            drawSky(CarScene.view(size.width.toDouble() / size.height, drive, speedFx), sky, isDay, clock)
+            fadeTop()
+        }
         Canvas(Modifier.fillMaxSize()) {
             val view = CarScene.view(size.width.toDouble() / size.height, drive, speedFx)
-            drawSky(view, sky, isDay, clock)
             drawScene(view, drive, travel, steer, speedFx, brake, boost, wet = sky == Sky.Rain || sky == Sky.Storm)
             drawCompass(view, compass, drive, letters, letterStyle)
         }
@@ -143,7 +150,10 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
         }
         // Rain and snow fall in front of the car.
         if (sky == Sky.Rain || sky == Sky.Storm || sky == Sky.Snow) {
-            Canvas(Modifier.fillMaxSize()) { drawPrecipitation(sky, clock, speedFx) }
+            Canvas(Modifier.fillMaxSize().graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
+                drawPrecipitation(sky, clock, speedFx)
+                fadeTop()
+            }
         }
         // Touch layer above the 3D view: drag to turn the car, double-tap to face it front again.
         Box(
@@ -374,6 +384,11 @@ private fun DrawScope.drawCompass(view: CarScene.View, heading: Float, drive: Fl
     }
 }
 
+/** Fades what is already drawn to nothing at the top edge. */
+private fun DrawScope.fadeTop() {
+    drawRect(Brush.verticalGradient(0f to Color.Transparent, 0.35f to Color.Black), blendMode = BlendMode.DstIn)
+}
+
 /** Repeatable "random" number 0…1, so drops and stars keep their places between frames. */
 private fun hash(i: Int, k: Int): Float {
     val v = sin(i * 12.9898 + k * 78.233) * 43758.5453
@@ -398,13 +413,6 @@ private fun DrawScope.drawSky(view: CarScene.View, sky: Sky?, isDay: Boolean, cl
             radius = size.width * 0.55f,
             center = sun,
         )
-        drawCircle(warm.copy(alpha = 0.5f * strength), radius = 5f * density, center = sun)
-        // Lens flare: soft rings along the line from the sun through the middle.
-        val mid = Offset(size.width / 2f, size.height / 2f)
-        for ((t, r) in listOf(0.45f to 14f, 0.8f to 26f, 1.25f to 10f)) {
-            val c = sun + (mid - sun) * t
-            drawCircle(warm.copy(alpha = 0.10f * strength), radius = r * density, center = c)
-        }
     } else if (clear) {
         // Night: a deep blue glow on the horizon and a few twinkling stars above it.
         drawRect(
