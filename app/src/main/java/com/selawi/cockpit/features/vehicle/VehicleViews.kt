@@ -1,5 +1,15 @@
 package com.selawi.cockpit.features.vehicle
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.Canvas
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -66,13 +76,17 @@ fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, compact: Bo
                     color = CockpitColors.TextSecondary,
                 )
             }
+            MotionTag(state.motion)
         }
         // Narrow window (split screen): a smaller speed, so the car keeps its room.
         Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.padding(top = 6.dp)) {
+            // The speed turns brake-red while the car slows hard enough to count as braking.
+            val braking = state.motion.motion == Motion.Braking || state.motion.motion == Motion.HardBraking
+            val speedColor by animateColorAsState(if (braking) BrakeRed else CockpitColors.TextPrimary, tween(200), label = "speedColour")
             Text(
                 "$speed",
                 style = if (compact) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displayLarge,
-                color = CockpitColors.TextPrimary,
+                color = speedColor,
             )
             Text(
                 "km/h",
@@ -94,6 +108,48 @@ fun VehiclePanel(state: DrivingState, modifier: Modifier = Modifier, compact: Bo
             TripStat("${trip.averageKmh}", "avg km/h", Modifier.weight(1f))
             TripStat("${trip.maxKmh}", "top km/h", Modifier.weight(1f))
         }
+    }
+}
+
+/** Brake-light red, the same by day and night so it always reads as braking. */
+val BrakeRed = Color(0xFFFF3B3B)
+
+/** BRAKING / HARD BRAKE with a brake symbol, or ACCELERATING, beside the heading. */
+@Composable
+private fun MotionTag(m: MotionState) {
+    AnimatedVisibility(visible = m.motion != Motion.Steady, enter = fadeIn(tween(150)), exit = fadeOut(tween(400))) {
+        val braking = m.motion == Motion.Braking || m.motion == Motion.HardBraking
+        val colour = if (braking) BrakeRed else CockpitColors.Accent
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(4.dp).clip(CircleShape).background(CockpitColors.TextTertiary))
+            if (braking) BrakeSymbol(colour, Modifier.size(20.dp))
+            Text(
+                when (m.motion) {
+                    Motion.HardBraking -> "HARD BRAKE"
+                    Motion.Braking -> "BRAKING"
+                    else -> "ACCELERATING"
+                },
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = colour,
+            )
+        }
+    }
+}
+
+/** The usual brake warning sign: an exclamation mark in a circle between two arcs. */
+@Composable
+private fun BrakeSymbol(colour: Color, modifier: Modifier) {
+    Canvas(modifier) {
+        val s = size.minDimension
+        val c = center
+        val stroke = s * 0.09f
+        drawCircle(colour, radius = s * 0.28f, center = c, style = Stroke(stroke))
+        drawLine(colour, Offset(c.x, c.y - s * 0.14f), Offset(c.x, c.y + s * 0.04f), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawCircle(colour, radius = stroke * 0.6f, center = Offset(c.x, c.y + s * 0.13f))
+        val arc = Size(s * 0.86f, s * 0.86f)
+        val topLeft = Offset(c.x - arc.width / 2, c.y - arc.height / 2)
+        drawArc(colour, 140f, 80f, false, topLeft, arc, style = Stroke(stroke, cap = StrokeCap.Round))
+        drawArc(colour, -40f, 80f, false, topLeft, arc, style = Stroke(stroke, cap = StrokeCap.Round))
     }
 }
 

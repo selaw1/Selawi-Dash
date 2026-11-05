@@ -30,6 +30,8 @@ import com.selawi.cockpit.features.settings.SettingsScreen
 import com.selawi.cockpit.features.settings.SettingsState
 import com.selawi.cockpit.data.local.ThemeMode
 import com.selawi.cockpit.features.vehicle.DrivingState
+import com.selawi.cockpit.features.vehicle.Motion
+import com.selawi.cockpit.features.vehicle.MotionState
 import com.selawi.cockpit.features.weather.HourForecast
 import com.selawi.cockpit.features.weather.Sky
 import com.selawi.cockpit.features.weather.Weather
@@ -54,6 +56,11 @@ class ScreenshotTest {
 
     @Test
     fun dashboardDriving() = shot(Destination.Home) { compact -> Dashboard(compact, moving) }
+
+    @Test
+    fun dashboardBraking() = shot(Destination.Home) { compact ->
+        Dashboard(compact, DrivingState(speedKmh = 41, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96), motion = MotionState(Motion.Braking, 0.8f)))
+    }
 
     @Test
     fun dashboardOrangeAccent() = shot(Destination.Home, accent = androidx.compose.ui.graphics.Color(0xFFF97316)) { compact -> Dashboard(compact, moving) }

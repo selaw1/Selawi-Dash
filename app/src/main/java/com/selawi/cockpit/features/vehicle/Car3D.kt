@@ -57,6 +57,9 @@ fun Car3D(state: DrivingState, modifier: Modifier = Modifier) {
     var drive by remember { mutableFloatStateOf(control.drive) }
     var steer by remember { mutableFloatStateOf(0f) }
     var speedFx by remember { mutableFloatStateOf(0f) }
+    // Start from the current state, so a screenshot taken mid-brake shows the glow.
+    var brake by remember { mutableFloatStateOf(brakeLevel(state.motion)) }
+    var boost by remember { mutableFloatStateOf(if (state.motion.motion == Motion.Accelerating) state.motion.level else 0f) }
     LaunchedEffect(control) {
         var last = 0L
         var lastHeading: Float? = null
@@ -81,15 +84,22 @@ fun Car3D(state: DrivingState, modifier: Modifier = Modifier) {
                 travel += s.speedKmh / 3.6f / CarScene.METRES_PER_UNIT * dt
                 // Eased over about a second, so speed changes feel like acceleration, not jumps.
                 speedFx += ((s.speedKmh / 120f).coerceIn(0f, 1f) - speedFx) * (1 - exp(-dt * 1.2f))
+                // Brake lights come on fast and fade out more slowly, like real ones.
+                val m = s.motion
+                val brakeTarget = brakeLevel(m)
+                brake += (brakeTarget - brake) * (1 - exp(-dt * if (brakeTarget > brake) 14f else 3f))
+                val boostTarget = if (m.motion == Motion.Accelerating) m.level else 0f
+                boost += (boostTarget - boost) * (1 - exp(-dt * 3f))
                 control.drive = drive
                 control.steer = steer
                 control.speedFx = speedFx
+                control.brake = brake
             }
         }
     }
 
     Box(modifier.clipToBounds()) {
-        Canvas(Modifier.fillMaxSize()) { drawScene(drive, travel, steer, speedFx) }
+        Canvas(Modifier.fillMaxSize()) { drawScene(drive, travel, steer, speedFx, brake, boost) }
         if (LocalInspectionMode.current) {
             CarStandIn(Modifier.fillMaxSize())
         } else {
@@ -134,7 +144,10 @@ private const val DASH = 0.55
 private const val GAP = 1.45
 
 /** Floor, contact shadow and, while driving, the road. Same camera as the 3D car. */
-private fun DrawScope.drawScene(drive: Float, travel: Float, steer: Float, speed: Float) {
+private fun brakeLevel(m: MotionState) =
+    if (m.motion == Motion.Braking || m.motion == Motion.HardBraking) m.level else 0f
+
+private fun DrawScope.drawScene(drive: Float, travel: Float, steer: Float, speed: Float, brake: Float, boost: Float) {
     val view = CarScene.view(size.width.toDouble() / size.height, drive, speed)
     fun p(x: Double, z: Double, y: Double = 0.0) = CarScene.project(view, x, y, z, size.width, size.height)
     val parked = 1f - drive
@@ -229,6 +242,29 @@ private fun DrawScope.drawScene(drive: Float, travel: Float, steer: Float, speed
                     }
                 }
                 sz -= streakPeriod
+            }
+        }
+    }
+
+    // Braking: red light spills onto the road behind the car, stronger for harder braking.
+    // Accelerating: a soft glow in the accent colour under the car.
+    if (drive > 0.01f) {
+        p(0.0, 1.25)?.let { rear ->
+            if (brake > 0.01f) {
+                drawCircle(
+                    Brush.radialGradient(listOf(BrakeRed.copy(alpha = 0.55f * brake * drive), Color.Transparent), rear, size.width * (0.28f + 0.12f * brake)),
+                    radius = size.width * (0.28f + 0.12f * brake),
+                    center = rear,
+                )
+            }
+        }
+        p(0.0, 0.0)?.let { under ->
+            if (boost > 0.01f) {
+                drawCircle(
+                    Brush.radialGradient(listOf(CockpitColors.Accent.copy(alpha = 0.35f * boost * drive), Color.Transparent), under, size.width * 0.45f),
+                    radius = size.width * 0.45f,
+                    center = under,
+                )
             }
         }
     }

@@ -35,7 +35,7 @@ class CockpitApplication : Application() {
         apps = AppsRepository(this, settings, scope)
         media = MediaRepository(this, scope)
         weather = WeatherRepository(this, scope)
-        driving = DrivingRepository(this)
+        driving = DrivingRepository(this, scope)
         calls = CallRepository(this, scope)
     }
 }

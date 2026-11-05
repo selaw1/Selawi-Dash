@@ -10,6 +10,7 @@ import android.os.SystemClock
 import com.selawi.cockpit.core.platform.hasLocationPermission
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 /** Distance, moving time and speeds since the trip started. */
@@ -27,6 +28,7 @@ data class DrivingState(
     /** Direction of travel in degrees from north, or null before the car has moved. */
     val headingDeg: Float? = null,
     val trip: Trip = Trip(),
+    val motion: MotionState = MotionState(),
 )
 
 /**
@@ -34,9 +36,16 @@ data class DrivingState(
  * signal, so this is the documented way to know how the car is moving. A new trip starts after the
  * car has been parked for two hours.
  */
-class DrivingRepository(private val context: Context) {
+class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.CoroutineScope) {
     private val _state = MutableStateFlow(DrivingState())
     val state: StateFlow<DrivingState> = _state
+
+    val motion = MotionDetector(context)
+
+    init {
+        // Braking and acceleration join the driving state as they happen, between GPS fixes too.
+        scope.launch { motion.state.collect { m -> _state.value = _state.value.copy(motion = m) } }
+    }
 
     private var listening = false
     private var slowSince = 0L
@@ -55,6 +64,7 @@ class DrivingRepository(private val context: Context) {
 
     @SuppressLint("MissingPermission")
     fun start() {
+        motion.start()
         if (listening || !context.hasLocationPermission()) return
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         listening = runCatching {
@@ -63,17 +73,19 @@ class DrivingRepository(private val context: Context) {
     }
 
     fun stop() {
+        motion.stop()
         if (!listening) return
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         lm.removeUpdates(listener)
         listening = false
         lastFix = null
-        _state.value = _state.value.copy(speedKmh = 0, driving = false)
+        _state.value = _state.value.copy(speedKmh = 0, driving = false, motion = MotionState())
     }
 
     private fun update(location: Location) {
         val now = SystemClock.elapsedRealtime()
         val mps = if (location.hasSpeed()) location.speed else 0f
+        motion.onGps(mps, location.accuracy)
         val kmh = (mps * 3.6f).roundToInt()
         val current = _state.value
 
@@ -104,7 +116,7 @@ class DrivingRepository(private val context: Context) {
         lastFixAt = now
 
         val heading = if (location.hasBearing() && kmh >= 5) location.bearing else current.headingDeg
-        _state.value = DrivingState(kmh, driving, heading, trip)
+        _state.value = DrivingState(kmh, driving, heading, trip, _state.value.motion)
     }
 
     private companion object {

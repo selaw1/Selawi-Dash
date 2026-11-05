@@ -33,6 +33,7 @@ class SettingsState(
     val crash: String?,
     val accent: androidx.compose.ui.graphics.Color? = null,
     val coverStatus: String = "",
+    val motionSource: String = "",
 )
 
 class SettingsActions(
@@ -111,6 +112,13 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = CockpitColors.TextSecondary,
             )
+            if (state.motionSource.isNotEmpty()) {
+                Text(
+                    "Braking detection: ${state.motionSource}",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = CockpitColors.TextSecondary,
+                )
+            }
             Spacer(Modifier.height(Space.s))
             if (state.crash == null) {
                 Text("No crashes recorded.", style = MaterialTheme.typography.bodyMedium, color = CockpitColors.TextSecondary)
