@@ -33,6 +33,7 @@ import com.selawi.cockpit.data.local.ThemeMode
 import com.selawi.cockpit.features.vehicle.DrivingState
 import com.selawi.cockpit.features.vehicle.Motion
 import com.selawi.cockpit.features.vehicle.MotionState
+import com.selawi.cockpit.features.vehicle.Turn
 import com.selawi.cockpit.features.weather.HourForecast
 import com.selawi.cockpit.features.weather.Sky
 import com.selawi.cockpit.features.weather.Weather
@@ -60,7 +61,7 @@ class ScreenshotTest {
 
     @Test
     fun dashboardBraking() = shot(Destination.Home) { compact ->
-        Dashboard(compact, DrivingState(speedKmh = 41, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96), motion = MotionState(Motion.Braking, 0.8f, -4.2f), lateral = 1.4f))
+        Dashboard(compact, DrivingState(speedKmh = 41, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96), motion = MotionState(Motion.Braking, 0.8f, -4.2f), lateral = 1.4f, signal = Turn.Right))
     }
 
     @Test

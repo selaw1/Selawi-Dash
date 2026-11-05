@@ -116,6 +116,9 @@ class CarControl {
     var speedFx = 0f
     /** 0 … 1: how hard the car is braking, eased by the UI; lights the brake lights. */
     var brake = 0f
+    /** World positions of the two ends of the rear indicator light (x, y, z each), when known. */
+    val signalEnds = FloatArray(6)
+    var hasSignalEnds = false
 
     /** The driver dragged the car round by this many degrees. */
     fun drag(degrees: Float) {
@@ -164,6 +167,7 @@ private class CarRenderer(
     private val brakeLights = mutableListOf<MaterialInstance>()
     private var shownBrake = -1f
     private val headlights = mutableListOf<MaterialInstance>()
+    private var signalEntity = 0
     private var shownHeadlights = -1f
     private var yawDeg = FRONT_YAW
     private var aspect = 1.6
@@ -267,6 +271,7 @@ private class CarRenderer(
         pickPaint(loaded)
         findWheels(loaded)
         findBrakeLights(loaded)
+        signalEntity = loaded.getFirstEntityByName("BodyTurnsignalsRear")
     }
 
     fun resume() {
@@ -380,6 +385,7 @@ private class CarRenderer(
             tm.setTransform(w.instance, m)
         }
         lightBrakes(control.brake.coerceIn(0f, 1f))
+        locateSignals()
         lightHeadlights(Intro.headlights())
     }
 
@@ -395,6 +401,27 @@ private class CarRenderer(
             }
         }
         lightBrakes(0f)
+    }
+
+    /** Where the rear indicator's two ends are this frame, so the UI can blink one of them. */
+    private fun locateSignals() {
+        val entity = signalEntity
+        val rm = engine.renderableManager
+        if (entity == 0 || !rm.hasComponent(entity)) return
+        val tm = engine.transformManager
+        val world = tm.getWorldTransform(tm.getInstance(entity), FloatArray(16))
+        val box = rm.getAxisAlignedBoundingBox(rm.getInstance(entity), Box())
+        val c = box.center
+        val h = box.halfExtent
+        for ((i, side) in listOf(-1f, 1f).withIndex()) {
+            val local = floatArrayOf(c[0] + side * h[0] * 0.85f, c[1], c[2], 1f)
+            val out = FloatArray(4)
+            Matrix.multiplyMV(out, 0, world, 0, local, 0)
+            control.signalEnds[i * 3] = out[0]
+            control.signalEnds[i * 3 + 1] = out[1]
+            control.signalEnds[i * 3 + 2] = out[2]
+        }
+        control.hasSignalEnds = true
     }
 
     /** Cool white headlights; the start-up intro flicks them on. */

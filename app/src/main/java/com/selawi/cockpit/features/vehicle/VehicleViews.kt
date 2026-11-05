@@ -28,6 +28,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameMillis
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -82,6 +88,7 @@ fun VehiclePanel(
                     color = CockpitColors.TextSecondary,
                 )
             }
+            SignalTag(state.signal)
             MotionTag(state.motion)
         }
         // Narrow window (split screen): a smaller speed, so the car keeps its room.
@@ -158,6 +165,48 @@ private const val MAX_G = 0.8f
 
 /** Brake-light red, the same by day and night so it always reads as braking. */
 val BrakeRed = Color(0xFFFF3B3B)
+
+/** Indicator green, as on the instrument cluster. */
+private val SignalGreen = Color(0xFF22C55E)
+
+/**
+ * A blinking green arrow for the way the car is turning. The car does not tell apps when its
+ * indicators are on, so this follows the turn itself, from GPS.
+ */
+@Composable
+private fun SignalTag(turn: Turn) {
+    val inspection = androidx.compose.ui.platform.LocalInspectionMode.current
+    var on by remember { mutableStateOf(true) }
+    LaunchedEffect(turn) {
+        while (turn != Turn.None && !inspection) withFrameMillis { on = blinkOn() }
+    }
+    AnimatedVisibility(visible = turn != Turn.None, enter = fadeIn(tween(150)), exit = fadeOut(tween(300))) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(4.dp).clip(CircleShape).background(CockpitColors.TextTertiary))
+            Canvas(Modifier.size(22.dp)) {
+                val w = size.width
+                val h = size.height
+                // Arrow pointing right; mirrored for left.
+                val arrow = androidx.compose.ui.graphics.Path().apply {
+                    moveTo(w * 0.08f, h * 0.36f)
+                    lineTo(w * 0.5f, h * 0.36f)
+                    lineTo(w * 0.5f, h * 0.12f)
+                    lineTo(w * 0.94f, h * 0.5f)
+                    lineTo(w * 0.5f, h * 0.88f)
+                    lineTo(w * 0.5f, h * 0.64f)
+                    lineTo(w * 0.08f, h * 0.64f)
+                    close()
+                }
+                val colour = if (on) SignalGreen else SignalGreen.copy(alpha = 0.18f)
+                if (turn == Turn.Left) {
+                    scale(-1f, 1f) { drawPath(arrow, colour) }
+                } else {
+                    drawPath(arrow, colour)
+                }
+            }
+        }
+    }
+}
 
 /** BRAKING / HARD BRAKE with a brake symbol, or ACCELERATING, beside the heading. */
 @Composable

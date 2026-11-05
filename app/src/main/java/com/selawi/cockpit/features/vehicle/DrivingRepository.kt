@@ -31,7 +31,14 @@ data class DrivingState(
     val motion: MotionState = MotionState(),
     /** Sideways acceleration in m/s² from speed and the change in heading; positive turning right. */
     val lateral: Float = 0f,
+    /** Which way the car is turning, as a stand-in for its indicators (which apps cannot read). */
+    val signal: Turn = Turn.None,
 )
+
+enum class Turn { None, Left, Right }
+
+/** Indicator blink: about 90 a minute, shared so the arrows and the car blink together. */
+fun blinkOn(now: Long = System.currentTimeMillis()) = now % 667 < 370
 
 /**
  * Speed, heading and trip from the car's GPS. Android gives apps no access to the car's own speed
@@ -55,6 +62,8 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
     private var lastFixAt = 0L
     private var lastMovingAt = 0L
     private var lateral = 0f
+    private var signal = Turn.None
+    private var signalUntil = 0L
 
     // All methods overridden: before Android 11 they have no default implementations.
     private val listener = object : LocationListener {
@@ -83,7 +92,8 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
         listening = false
         lastFix = null
         lateral = 0f
-        _state.value = _state.value.copy(speedKmh = 0, driving = false, motion = MotionState(), lateral = 0f)
+        signal = Turn.None
+        _state.value = _state.value.copy(speedKmh = 0, driving = false, motion = MotionState(), lateral = 0f, signal = Turn.None)
     }
 
     private fun update(location: Location) {
@@ -131,8 +141,21 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
             0f
         }
         lateral = (lateral * 0.4f + turn.coerceIn(-12f, 12f) * 0.6f)
+        // Turning at 7° a second or more counts as a corner; the "indicator" stays on a moment
+        // after the corner, as a real one does until the wheel straightens.
+        val rate = if (heading != null && lastHeading != null && kmh >= 8 && dtFix in 0.4f..3f) {
+            (((heading - lastHeading + 540f) % 360f) - 180f) / dtFix
+        } else {
+            0f
+        }
+        if (kotlin.math.abs(rate) >= 7f) {
+            signal = if (rate > 0) Turn.Right else Turn.Left
+            signalUntil = now + 1_500
+        } else if (now > signalUntil || !driving) {
+            signal = Turn.None
+        }
         val shownLateral = (lateral / 0.2f).roundToInt() * 0.2f
-        _state.value = DrivingState(kmh, driving, heading, trip, _state.value.motion, shownLateral)
+        _state.value = DrivingState(kmh, driving, heading, trip, _state.value.motion, shownLateral, signal)
     }
 
     private companion object {

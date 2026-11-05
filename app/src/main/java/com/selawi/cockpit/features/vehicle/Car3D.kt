@@ -151,6 +151,14 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
         } else {
             LiveCar(Modifier.fillMaxSize(), state.speedKmh, state.driving, control)
         }
+        // Indicator: amber light blinking on the turning side of the car's rear while driving.
+        if (state.signal != Turn.None) {
+            val inspection = LocalInspectionMode.current
+            Canvas(Modifier.fillMaxSize()) {
+                clock // Redraw every frame, so the blink keeps time.
+                if (drive > 0.5f && (inspection || blinkOn())) drawIndicator(control, state.signal, drive, speedFx)
+            }
+        }
         // Rain and snow fall in front of the car.
         if (sky == Sky.Rain || sky == Sky.Storm || sky == Sky.Snow) {
             Canvas(Modifier.fillMaxSize().graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
@@ -384,6 +392,30 @@ private fun DrawScope.drawCompass(view: CarScene.View, heading: Float, drive: Fl
         val colour = if (deg == 0) CockpitColors.Accent else CockpitColors.TextSecondary
         val layout = text.measure(name, style.copy(color = colour.copy(alpha = drive)))
         drawText(layout, topLeft = Offset(pt.x - layout.size.width / 2f, pt.y - layout.size.height / 2f))
+    }
+}
+
+/** Indicator amber, as on the car. */
+private val SignalAmber = Color(0xFFFFA726)
+
+private fun DrawScope.drawIndicator(control: CarControl, turn: Turn, drive: Float, speed: Float) {
+    val view = CarScene.view(size.width.toDouble() / size.height, drive, speed)
+    fun p(x: Float, y: Float, z: Float) = CarScene.project(view, x.toDouble(), y.toDouble(), z.toDouble(), size.width, size.height)
+    // The renderer's light positions; without them (screenshots), roughly where they sit.
+    val e = if (control.hasSignalEnds) control.signalEnds else floatArrayOf(-0.4f, 0.62f, 1f, 0.4f, 0.62f, 1f)
+    val a = p(e[0], e[1], e[2]) ?: return
+    val b = p(e[3], e[4], e[5]) ?: return
+    // Driving, the car faces away from us, so its left side is on the left of the screen.
+    val left = a.x < b.x
+    val light = if ((turn == Turn.Left) == left) a else b
+    val world = if (light == a) 0 else 3
+    val r = 26f * density
+    drawCircle(Brush.radialGradient(listOf(SignalAmber.copy(alpha = 0.85f), SignalAmber.copy(alpha = 0.25f), Color.Transparent), light, r), radius = r, center = light)
+    drawCircle(Color(0xFFFFE0B2), radius = 3.5f * density, center = light)
+    // A little of its light on the road below.
+    p(e[world], 0f, e[world + 2] + 0.25f)?.let { ground ->
+        val g = 40f * density
+        drawCircle(Brush.radialGradient(listOf(SignalAmber.copy(alpha = 0.25f), Color.Transparent), ground, g), radius = g, center = ground)
     }
 }
 
