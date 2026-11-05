@@ -74,6 +74,24 @@ class ScreenshotTest {
     }
 
     @Test
+    fun backgroundPlain() = shot(Destination.Home) { compact -> Dashboard(compact, parked, isDay = false, backdrop = Backdrop.Plain) }
+
+    @Test
+    fun backgroundCoverGlow() = shot(Destination.Home) { compact -> Dashboard(compact, parked, isDay = false, backdrop = Backdrop.CoverGlow) }
+
+    @Test
+    fun backgroundAccent() = shot(Destination.Home) { compact -> Dashboard(compact, parked, isDay = false, backdrop = Backdrop.Accent) }
+
+    @Test
+    fun backgroundDusk() = shot(Destination.Home) { compact -> Dashboard(compact, parked, isDay = false, backdrop = Backdrop.Dusk) }
+
+    @Test
+    fun backgroundOcean() = shot(Destination.Home) { compact -> Dashboard(compact, parked, isDay = false, backdrop = Backdrop.Ocean) }
+
+    @Test
+    fun backgroundAurora() = shot(Destination.Home) { compact -> Dashboard(compact, parked, isDay = false, backdrop = Backdrop.Aurora) }
+
+    @Test
     fun dashboardOrangeAccent() = shot(Destination.Home, accent = androidx.compose.ui.graphics.Color(0xFFF97316)) { compact -> Dashboard(compact, moving) }
 
     @Test
