@@ -108,8 +108,8 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
                 // No new heading for a while: the road is straight again.
                 if (clock - lastHeadingAt > 2.5f) headingRate = 0f
                 turnRate += (headingRate - turnRate) * (1 - exp(-dt * 2.5f))
-                // About 22° a second (a brisk city corner) bends the road fully.
-                steer = (turnRate / 22f).coerceIn(-1f, 1f)
+                // About 28° a second (a sharp city corner) bends the road fully.
+                steer = (turnRate / 28f).coerceIn(-1f, 1f)
                 if (heading != null) {
                     val d = ((heading - compass + 540f) % 360f) - 180f
                     compass = (compass + d * (1 - exp(-dt * 3f)) + 360f) % 360f

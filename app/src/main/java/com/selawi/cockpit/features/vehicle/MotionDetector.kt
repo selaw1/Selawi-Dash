@@ -1,16 +1,11 @@
 package com.selawi.cockpit.features.vehicle
 
 import android.content.Context
-import android.hardware.Sensor
-import android.hardware.SensorEvent
-import android.hardware.SensorEventListener
-import android.hardware.SensorManager
 import android.os.SystemClock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.abs
 import kotlin.math.roundToInt
-import kotlin.math.sqrt
 
 enum class Motion { Steady, Accelerating, Braking, HardBraking }
 
@@ -21,145 +16,102 @@ enum class Motion { Steady, Accelerating, Braking, HardBraking }
 data class MotionState(val motion: Motion = Motion.Steady, val level: Float = 0f, val accel: Float = 0f)
 
 /**
- * Braking and acceleration. The car shares no pedal or brake-light signal with apps, so this
- * watches how fast the speed changes.
+ * Braking and acceleration from GPS speed. The car shares no pedal or brake-light signal with
+ * apps, so this watches how fast the speed changes.
  *
- * GPS gives a reading every second, so on its own it reacts about a second late. When the head
- * unit has a motion sensor, the detector learns which of the sensor's axes points along the car by
- * comparing it with GPS during the first stops and starts, then reacts as soon as the car slows.
+ * The acceleration is the trend of the last few speed readings (a straight-line fit over about two
+ * and a half seconds), which ignores the small jitter in each GPS reading. A state starts at one
+ * level and only ends well below it, and braking never turns straight into accelerating (or back):
+ * it passes through steady first. The cost is about a second of delay.
  * It shows motion, not the pedal: the car slowing by itself (regeneration, a hill) counts too.
  */
+@Suppress("UNUSED_PARAMETER")
 class MotionDetector(context: Context) {
     private val _state = MutableStateFlow(MotionState())
     val state: StateFlow<MotionState> = _state
 
-    private val _source = MutableStateFlow("GPS only")
-    /** Shown in Settings: whether the motion sensor is in use yet. */
-    val source: StateFlow<String> = _source
+    /** Shown in Settings. */
+    val source: StateFlow<String> = MutableStateFlow("GPS speed (about a second behind)")
 
-    private val sensors = context.getSystemService(Context.SENSOR_SERVICE) as SensorManager
-    private val sensor: Sensor? = sensors.getDefaultSensor(Sensor.TYPE_LINEAR_ACCELERATION)
-        ?: sensors.getDefaultSensor(Sensor.TYPE_ACCELEROMETER)
-    private val removesGravity = sensor?.type == Sensor.TYPE_LINEAR_ACCELERATION
+    private class Sample(val at: Long, val speed: Float)
+    private val samples = ArrayDeque<Sample>()
 
-    // Sensor reading, smoothed, with gravity taken out when the sensor does not do it itself.
-    private val gravity = FloatArray(3)
-    private val smooth = FloatArray(3)
-    // Learned direction of the car's travel in the sensor's axes.
-    private val forward = FloatArray(3)
-    private var samples = 0
-    private val calibrated get() = samples >= CALIBRATION_SAMPLES
-
-    private var lastSpeed = -1f
-    private var lastSpeedAt = 0L
-    private var gpsAccel = 0f
-    private var currentSpeedKmh = 0f
-    private var motionSince = 0L
-    private var listening = false
-
-    private val listener = object : SensorEventListener {
-        override fun onSensorChanged(event: SensorEvent) = onSensor(event.values)
-        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) {}
-    }
-
-    init {
-        if (sensor == null) _source.value = "GPS only (no motion sensor on this car)"
-    }
-
-    fun start() {
-        if (listening || sensor == null) return
-        listening = sensors.registerListener(listener, sensor, SensorManager.SENSOR_DELAY_GAME)
-        if (listening && !calibrated) _source.value = "Learning the motion sensor (a few stops and starts)"
-    }
+    fun start() {}
 
     fun stop() {
-        if (!listening) return
-        sensors.unregisterListener(listener)
-        listening = false
+        samples.clear()
+        _state.value = MotionState()
     }
 
-    /** Each GPS fix: the reference the sensor learns from, and the fallback without a sensor. */
+    /** Each GPS fix. */
     fun onGps(speedMps: Float, accuracy: Float) {
         val now = SystemClock.elapsedRealtime()
-        currentSpeedKmh = speedMps * 3.6f
-        if (lastSpeed >= 0 && accuracy < 30f) {
-            val dt = (now - lastSpeedAt) / 1000f
-            if (dt in 0.4f..3f) {
-                val a = (speedMps - lastSpeed) / dt
-                // A change no car can make is a GPS glitch (a tunnel, a jump), not braking.
-                if (abs(a) < 12f) {
-                    gpsAccel = gpsAccel * 0.3f + a * 0.7f
-                    learn(gpsAccel)
-                    if (!calibrated) classify(gpsAccel, now)
-                }
-            }
+        if (accuracy > 30f) return
+        // A jump no car can make is a GPS glitch (a tunnel, a bad fix): start the trend again.
+        samples.lastOrNull()?.let { last ->
+            val dt = (now - last.at) / 1000f
+            if (dt > 0f && abs(speedMps - last.speed) / dt > 12f) samples.clear()
         }
-        lastSpeed = speedMps
-        lastSpeedAt = now
+        samples.addLast(Sample(now, speedMps))
+        while (samples.isNotEmpty() && now - samples.first().at > WINDOW_MS) samples.removeFirst()
+        val accel = trend() ?: return
+        update(accel, speedMps * 3.6f)
     }
 
-    private fun onSensor(v: FloatArray) {
-        val a = FloatArray(3)
-        for (i in 0..2) {
-            if (removesGravity) {
-                a[i] = v[i]
-            } else {
-                gravity[i] = gravity[i] * 0.95f + v[i] * 0.05f
-                a[i] = v[i] - gravity[i]
-            }
-            smooth[i] = smooth[i] * 0.85f + a[i] * 0.15f
+    /** Slope of speed over time (m/s²) by least squares, or null with too few readings. */
+    private fun trend(): Float? {
+        if (samples.size < 3) return null
+        val t0 = samples.first().at
+        if (samples.last().at - t0 < 1_500) return null
+        var st = 0.0; var sv = 0.0; var stt = 0.0; var stv = 0.0
+        for (s in samples) {
+            val t = (s.at - t0) / 1000.0
+            st += t; sv += s.speed; stt += t * t; stv += t * s.speed
         }
-        if (calibrated) {
-            val f = smooth[0] * forward[0] + smooth[1] * forward[1] + smooth[2] * forward[2]
-            classify(f, SystemClock.elapsedRealtime())
-        }
+        val n = samples.size
+        val d = n * stt - st * st
+        if (d <= 0.0) return null
+        return ((n * stv - st * sv) / d).toFloat()
     }
 
-    /** During clear speed-ups and slow-downs, the sensor's reading points along (or against) travel. */
-    private fun learn(accel: Float) {
-        if (sensor == null || !listening || abs(accel) < 1.0f) return
-        val sign = if (accel > 0) 1f else -1f
-        for (i in 0..2) forward[i] += smooth[i] * sign
-        val len = sqrt(forward[0] * forward[0] + forward[1] * forward[1] + forward[2] * forward[2])
-        samples++
-        if (calibrated && len > 0f) {
-            for (i in 0..2) forward[i] /= len
-            _source.value = "Motion sensor (instant)"
-        }
-    }
-
-    private fun classify(accel: Float, now: Long) {
+    private fun update(accel: Float, kmh: Float) {
+        val current = _state.value.motion
+        val braking = current == Motion.Braking || current == Motion.HardBraking
         val motion = when {
-            currentSpeedKmh < 10f && accel < 0 -> Motion.Steady
+            // Stopped or creeping: nothing to show.
+            kmh < 8f && !braking -> Motion.Steady
+            braking -> when {
+                accel > -BRAKE_END -> Motion.Steady
+                accel <= -HARD_BRAKE -> Motion.HardBraking
+                current == Motion.HardBraking && accel <= -HARD_BRAKE_END -> Motion.HardBraking
+                else -> Motion.Braking
+            }
+            current == Motion.Accelerating -> if (accel < ACCELERATE_END) Motion.Steady else Motion.Accelerating
             accel <= -HARD_BRAKE -> Motion.HardBraking
             accel <= -BRAKE -> Motion.Braking
-            accel >= ACCELERATE && currentSpeedKmh > 5f -> Motion.Accelerating
+            accel >= ACCELERATE -> Motion.Accelerating
             else -> Motion.Steady
         }
-        val current = _state.value
-        // Rounded, so the screen only updates when the reading changes enough to see.
-        val shown = if (currentSpeedKmh < 3f) 0f else (accel / 0.2f).roundToInt() * 0.2f
-        // Keep a state for at least half a second, so it never flickers.
-        if (motion != current.motion && now - motionSince < 500 && current.motion != Motion.Steady) {
-            if (shown != current.accel) _state.value = current.copy(accel = shown)
-            return
-        }
-        if (motion != current.motion) motionSince = now
         val level = when (motion) {
             Motion.Steady -> 0f
-            Motion.Accelerating -> ((accel - ACCELERATE) / 3f).coerceIn(0.2f, 1f)
-            else -> ((-accel - BRAKE) / (HARD_BRAKE * 1.5f - BRAKE)).coerceIn(0.25f, 1f)
+            Motion.Accelerating -> ((accel - ACCELERATE_END) / 3f).coerceIn(0.2f, 1f)
+            else -> ((-accel - BRAKE_END) / (HARD_BRAKE * 1.5f - BRAKE_END)).coerceIn(0.25f, 1f)
         }
+        // Rounded, so the screen only updates when the reading changes enough to see.
+        val shown = if (kmh < 3f) 0f else (accel / 0.1f).roundToInt() * 0.1f
         _state.value = MotionState(motion, (level / 0.05f).roundToInt() * 0.05f, shown)
     }
 
     private companion object {
-        /** About 5 km/h lost per second. */
+        const val WINDOW_MS = 2_600L
+        /** Braking starts at about 5 km/h lost per second and ends below about 2. */
         const val BRAKE = 1.4f
-        /** About 15 km/h lost per second. */
-        const val HARD_BRAKE = 4.2f
-        /** About 6 km/h gained per second. */
+        const val BRAKE_END = 0.6f
+        /** Hard braking: about 13 km/h lost per second. */
+        const val HARD_BRAKE = 3.6f
+        const val HARD_BRAKE_END = 2.6f
+        /** Accelerating starts at about 6 km/h gained per second and ends below about 3. */
         const val ACCELERATE = 1.7f
-        const val CALIBRATION_SAMPLES = 12
+        const val ACCELERATE_END = 0.8f
     }
 }

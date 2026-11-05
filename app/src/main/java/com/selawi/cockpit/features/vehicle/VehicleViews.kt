@@ -154,7 +154,7 @@ private fun GForceMeter(state: DrivingState, modifier: Modifier, size: androidx.
             drawCircle(dot, radius = 5f * density, center = p)
         }
         Text(
-            String.format(Locale.US, "%.2f g", total),
+            String.format(Locale.US, "G-force %.2f", total),
             style = MaterialTheme.typography.labelSmall,
             color = CockpitColors.TextSecondary,
         )
