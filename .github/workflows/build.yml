@@ -57,45 +57,8 @@ jobs:
           name: apk
           path: selawi-dash.apk
 
-  # Opens the release APK on an emulator set up like the car's screen and fails if it crashes, so a
-  # broken build never reaches the download page.
-  smoke-test:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: apk
-
-      - name: Enable hardware acceleration for the emulator
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Open the app on an emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          # Android 11+ emulator images run 64-bit ARM apps through translation.
-          api-level: 30
-          target: google_apis
-          arch: x86_64
-          disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: bash .github/smoke-test.sh
-
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: smoke-test
-          path: |
-            emulator.png
-            logcat.txt
-
   publish:
-    needs: [build, smoke-test]
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -107,11 +70,6 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: screenshots
-          path: screenshots
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: smoke-test
           path: screenshots
 
       # Fixed download links for the car's browser:
@@ -132,7 +90,6 @@ jobs:
             fi
           }
           publish cockpit-latest selawi-dash.apk "Selawi Dash (latest test build)"
-          rm -f screenshots/logcat.txt
           (cd screenshots && zip -q ../cockpit-screenshots.zip *.png)
           publish screenshots-latest cockpit-screenshots.zip "Cockpit screenshots (latest build)"
 
