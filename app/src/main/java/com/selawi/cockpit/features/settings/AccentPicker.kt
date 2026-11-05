@@ -79,7 +79,7 @@ fun AccentPicker(current: Color?, onChange: (color: Color?, final: Boolean) -> U
 }
 
 @Composable
-private fun ColorWheel(selected: Color, onChange: (Color?, Boolean) -> Unit, modifier: Modifier) {
+internal fun ColorWheel(selected: Color, onChange: (Color?, Boolean) -> Unit, modifier: Modifier) {
     val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(selected.toArgb(), it) }
     val report = rememberUpdatedState(onChange)
     Canvas(

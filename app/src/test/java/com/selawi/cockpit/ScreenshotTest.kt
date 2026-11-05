@@ -34,6 +34,7 @@ import com.selawi.cockpit.features.vehicle.DrivingState
 import com.selawi.cockpit.features.vehicle.Motion
 import com.selawi.cockpit.features.vehicle.MotionState
 import com.selawi.cockpit.features.vehicle.Turn
+import com.selawi.cockpit.features.vehicle.CarPaint
 import com.selawi.cockpit.features.weather.HourForecast
 import com.selawi.cockpit.features.weather.Sky
 import com.selawi.cockpit.features.weather.Weather
@@ -114,6 +115,30 @@ class ScreenshotTest {
         shot(Destination.Home) { compact -> Dashboard(compact, parked) }
     }
 
+    // Likely smaller head units (10.1-inch), to check the layout adapts.
+    @Test
+    fun smallScreen1280x800() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = carScreen(1280, 800, Density.MEDIUM))
+        shot(Destination.Home) { compact -> Dashboard(compact, moving) }
+    }
+
+    @Test
+    fun smallScreen1024x600() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = carScreen(1024, 600, Density.MEDIUM))
+        shot(Destination.Home) { compact -> Dashboard(compact, moving) }
+    }
+
+    @Test
+    fun smallScreen1280x720Dense() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = carScreen(1280, 720, Density.HIGH))
+        shot(Destination.Home) { compact -> Dashboard(compact, parked) }
+    }
+
+    @Test
+    fun carColourBlue() = shot(Destination.Home) { compact ->
+        Dashboard(compact, parked, carPaint = CarPaint.custom(androidx.compose.ui.graphics.Color(0xFF1F4E8C)))
+    }
+
     @Test
     fun apps() = shot(Destination.Apps) {
         AppsScreen(apps = allApps, pinned = allApps.take(5), onOpen = {}, onTogglePin = {}, onCarHome = {})
@@ -139,6 +164,7 @@ class ScreenshotTest {
         sky: Sky = Sky.Clear,
         isDay: Boolean = true,
         backdrop: Backdrop = Backdrop.CoverGlow,
+        carPaint: String = CarPaint.Pearl,
     ) {
         DashboardScreen(
             compact = compact,
@@ -160,6 +186,7 @@ class ScreenshotTest {
                 driving = driving,
                 fixedTime = LocalDateTime.of(2026, 11, 3, 12, 51),
                 backdrop = backdrop,
+                carPaint = carPaint,
             ),
             controls = MediaControls.None,
         )
@@ -176,12 +203,12 @@ class ScreenshotTest {
         }
     }
 
-    private fun carScreen(widthPx: Int) = DeviceConfig.PIXEL_5.copy(
+    private fun carScreen(widthPx: Int, heightPx: Int = 1080, density: Density = Density.HIGH) = DeviceConfig.PIXEL_5.copy(
         screenWidth = widthPx,
-        screenHeight = 1080,
-        xdpi = 240,
-        ydpi = 240,
-        density = Density.HIGH,
+        screenHeight = heightPx,
+        xdpi = density.dpiValue,
+        ydpi = density.dpiValue,
+        density = density,
         orientation = ScreenOrientation.LANDSCAPE,
         softButtons = false,
     )

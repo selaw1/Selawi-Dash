@@ -7,7 +7,8 @@ on:
       - "gradle/**"
       - "*.gradle.kts"
       - "gradle.properties"
-      - ".github/workflows/build.yml"
+      - "site/**"
+      - ".github/**"
   workflow_dispatch:
 
 permissions:
@@ -30,11 +31,18 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
-      - name: Build Selawi Dash
+      - name: Build Selawi Dash (release)
         run: |
           chmod +x gradlew
-          ./gradlew :app:assembleDebug --stacktrace
-          cp app/build/outputs/apk/debug/app-debug.apk selawi-dash.apk
+          ./gradlew :app:assembleRelease --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk selawi-dash.apk
+          size=$(stat -c %s selawi-dash.apk)
+          echo "APK size: $size bytes ($((size / 1048576)) MB)"
+          # Cloudflare Pages serves files up to 25 MiB.
+          if [ "$size" -gt 26214400 ]; then
+            echo "::error::The APK is larger than 25 MB, too big for the download page."
+            exit 1
+          fi
 
       - name: Render screenshots
         run: ./gradlew :app:recordPaparazziDebug --stacktrace
@@ -46,9 +54,65 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: apks
+          name: apk
+          path: selawi-dash.apk
+
+  # Opens the release APK on an emulator set up like the car's screen and fails if it crashes, so a
+  # broken build never reaches the download page.
+  smoke-test:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+
+      - name: Enable hardware acceleration for the emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Open the app on an emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          # Android 11+ emulator images run 64-bit ARM apps through translation.
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: bash .github/smoke-test.sh
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-test
           path: |
-            selawi-dash.apk
+            emulator.png
+            logcat.txt
+
+  publish:
+    needs: [build, smoke-test]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: screenshots
+          path: screenshots
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: smoke-test
+          path: screenshots
 
       # Fixed download links for the car's browser:
       # .../releases/download/cockpit-latest/selawi-dash.apk
@@ -68,5 +132,24 @@ jobs:
             fi
           }
           publish cockpit-latest selawi-dash.apk "Selawi Dash (latest test build)"
-          (cd app/src/test/snapshots/images && zip -q ../../../../../cockpit-screenshots.zip *.png)
+          rm -f screenshots/logcat.txt
+          (cd screenshots && zip -q ../cockpit-screenshots.zip *.png)
           publish screenshots-latest cockpit-screenshots.zip "Cockpit screenshots (latest build)"
+
+      # The download page and the newest APK, uploaded to Cloudflare Pages. Skipped until the
+      # CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are added to the repository.
+      - name: Publish the download page
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PROJECT: ${{ vars.CLOUDFLARE_PROJECT || 'selawi-dash' }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "Cloudflare secrets are not set yet; skipping the download page."
+            exit 0
+          fi
+          rm -rf site-out && cp -r site site-out
+          cp selawi-dash.apk site-out/
+          size=$(awk "BEGIN { printf \"%.1f\", $(stat -c %s selawi-dash.apk) / 1048576 }")
+          sed -i "s/__VERSION__/0.3.${GITHUB_RUN_NUMBER}/; s/__SIZE__/${size}/" site-out/index.html
+          npx --yes wrangler@3 pages deploy site-out --project-name="$PROJECT" --branch=main --commit-dirty=true

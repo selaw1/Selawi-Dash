@@ -116,6 +116,8 @@ class CarControl {
     var speedFx = 0f
     /** 0 … 1: how hard the car is braking, eased by the UI; lights the brake lights. */
     var brake = 0f
+    /** The paint to show (see CarPaint); the renderer applies it when it changes. */
+    var paint: String = CarPaint.Pearl
     /** World positions of the two ends of the rear indicator light (x, y, z each), when known. */
     val signalEnds = FloatArray(6)
     var hasSignalEnds = false
@@ -168,6 +170,7 @@ private class CarRenderer(
     private var shownBrake = -1f
     private val headlights = mutableListOf<MaterialInstance>()
     private var signalEntity = 0
+    private var appliedPaint: String? = null
     private var shownHeadlights = -1f
     private var yawDeg = FRONT_YAW
     private var aspect = 1.6
@@ -268,7 +271,6 @@ private class CarRenderer(
         fitToUnitSize(loaded)
         hideLogos(loaded)
         coverTireLettering(loaded)
-        pickPaint(loaded)
         findWheels(loaded)
         findBrakeLights(loaded)
         signalEntity = loaded.getFirstEntityByName("BodyTurnsignalsRear")
@@ -384,6 +386,7 @@ private class CarRenderer(
             Matrix.translateM(m, 0, -w.pivot[0], -w.pivot[1], -w.pivot[2])
             tm.setTransform(w.instance, m)
         }
+        if (control.paint != appliedPaint) applyPaint(loaded, control.paint)
         lightBrakes(control.brake.coerceIn(0f, 1f))
         locateSignals()
         lightHeadlights(Intro.headlights())
@@ -466,15 +469,45 @@ private class CarRenderer(
         }
     }
 
-    /** The bundled model has three paints; pearl white stands out best on the dark cockpit. */
-    private fun pickPaint(loaded: FilamentAsset) {
+    /**
+     * The bundled model has three paints (pearl white, carmine red, graphite). A custom colour
+     * starts from the red paint, which has a clear coat and no colour-shift, and replaces its
+     * colour on the body. Models without these paints keep their own.
+     */
+    private fun applyPaint(loaded: FilamentAsset, paint: String) {
+        appliedPaint = paint
         runCatching {
             val instance = loaded.instance
             val names = instance.materialVariantNames
-            val pearl = names.indexOfFirst { it.contains("Pearl", ignoreCase = true) }
-            if (pearl >= 0) instance.applyMaterialVariant(pearl)
+            val custom = CarPaint.customColor(paint)
+            val variant = if (custom != null) CarPaint.Carmine else paint
+            val index = names.indexOfFirst { it.contains(variant, ignoreCase = true) }
+            if (index < 0) return
+            instance.applyMaterialVariant(index)
+            // Body panels use "Paint 1 Carmine" in the red paint.
+            val rm = engine.renderableManager
+            val (r, g, b) = if (custom != null) {
+                Triple(linear(custom.red), linear(custom.green), linear(custom.blue))
+            } else {
+                Triple(0.666f, 0f, 0f)
+            }
+            for (entity in loaded.renderableEntities) {
+                val ri = rm.getInstance(entity)
+                for (prim in 0 until rm.getPrimitiveCount(ri)) {
+                    val material = rm.getMaterialInstanceAt(ri, prim)
+                    if (material.name == "Paint 1 Carmine") material.setParameter("baseColorFactor", r, g, b, 1f)
+                    // The red paint comes with red seat trim; a custom colour gets neutral dark trim.
+                    if (material.name == "Interior 3 Carmine") {
+                        if (custom != null) material.setParameter("baseColorFactor", 0.02f, 0.02f, 0.02f, 1f)
+                        else material.setParameter("baseColorFactor", 0.2158f, 0.005f, 0f, 1f)
+                    }
+                }
+            }
         }
     }
+
+    /** Screen colour (sRGB) to the linear value the renderer expects. */
+    private fun linear(c: Float) = Math.pow(c.toDouble(), 2.2).toFloat()
 
     /** Finds the four wheels and the point each one turns about. Other models simply get no spin. */
     private fun findWheels(loaded: FilamentAsset) {

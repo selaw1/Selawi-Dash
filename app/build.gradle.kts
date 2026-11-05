@@ -18,7 +18,9 @@ android {
         targetSdk = 35
         versionCode = (System.getenv("GITHUB_RUN_NUMBER") ?: "1").toInt()
         versionName = "0.3.${System.getenv("GITHUB_RUN_NUMBER") ?: "0"}"
-        ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+        // 64-bit only: the head units this is for are 64-bit, and the 32-bit copy of the 3D engine
+        // would add about 6 MB.
+        ndk { abiFilters += listOf("arm64-v8a") }
     }
 
     signingConfigs {
@@ -34,6 +36,19 @@ android {
 
     buildTypes {
         debug { signingConfig = signingConfigs.getByName("debug") }
+        // What drivers install: unused code and resources removed, so it is small enough for the
+        // download page and runs faster. Same key, so it installs over earlier builds.
+        release {
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfig = signingConfigs.getByName("debug")
+        }
+    }
+
+    packaging {
+        // Store the 3D engine's native libraries compressed; Android unpacks them once on install.
+        jniLibs { useLegacyPackaging = true }
     }
 
     androidResources {

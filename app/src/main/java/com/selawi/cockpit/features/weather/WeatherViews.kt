@@ -4,6 +4,8 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.ui.unit.sp
@@ -40,8 +42,11 @@ fun ForecastStrip(weather: Weather?, modifier: Modifier = Modifier, is24h: Boole
             if (weather == null || weather.hours.isEmpty()) {
                 Text("Forecast loading…", style = MaterialTheme.typography.bodyMedium, color = CockpitColors.TextTertiary, modifier = Modifier.weight(1f).padding(start = 10.dp))
             } else {
-                Row(Modifier.weight(1f)) {
-                    weather.hours.forEach { hour ->
+                BoxWithConstraints(Modifier.weight(1f)) {
+                // As many hours as fit at about 64 dp each; the rest drop off the end.
+                val fits = (maxWidth / 64.dp).toInt().coerceAtLeast(2)
+                Row(Modifier.fillMaxWidth()) {
+                    weather.hours.take(fits).forEach { hour ->
                         Column(Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(hourLabel(hour.time, is24h), style = MaterialTheme.typography.labelSmall, color = CockpitColors.TextSecondary)
                             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -50,6 +55,7 @@ fun ForecastStrip(weather: Weather?, modifier: Modifier = Modifier, is24h: Boole
                             }
                         }
                     }
+                }
                 }
             }
             Box(Modifier.padding(horizontal = 12.dp).width(1.dp).height(36.dp).background(CockpitColors.Stroke))

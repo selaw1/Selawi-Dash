@@ -58,6 +58,7 @@ fun VehiclePanel(
     modifier: Modifier = Modifier,
     compact: Boolean = false,
     weather: com.selawi.cockpit.features.weather.Weather? = null,
+    paint: String = CarPaint.Pearl,
 ) {
     val speed by animateIntAsState(state.speedKmh, tween(600), label = "speed")
     Column(
@@ -110,7 +111,7 @@ fun VehiclePanel(
             Spacer(Modifier.weight(1f))
             GForceMeter(state, Modifier.padding(bottom = 4.dp), if (compact) 64.dp else 84.dp)
         }
-        Car3D(state, weather, Modifier.fillMaxWidth().weight(1f))
+        Car3D(state, weather, Modifier.fillMaxWidth().weight(1f), paint)
         // The trip row is left out of the narrow layout; the full screen shows it.
         if (compact) return@Column
         Spacer(Modifier.height(Space.m))

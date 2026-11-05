@@ -46,6 +46,7 @@ class SettingsState(
     val coverStatus: String = "",
     val motionSource: String = "",
     val backdrop: Backdrop = Backdrop.CoverGlow,
+    val carPaint: String = "Pearl",
 )
 
 class SettingsActions(
@@ -59,6 +60,7 @@ class SettingsActions(
     val onClearCrash: () -> Unit = {},
     val onAccent: (androidx.compose.ui.graphics.Color?, Boolean) -> Unit = { _, _ -> },
     val onBackdrop: (Backdrop) -> Unit = {},
+    val onCarPaint: (String, Boolean) -> Unit = { _, _ -> },
 )
 
 @Composable
@@ -100,6 +102,17 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
             )
             Spacer(Modifier.height(Space.m))
             AccentPicker(state.accent, actions.onAccent)
+        }
+        CockpitCard(Modifier.fillMaxWidth()) {
+            SectionLabel("Car colour")
+            Spacer(Modifier.height(Space.s))
+            Text(
+                "Paint the 3D car: its own pearl white, carmine red or graphite, a common colour, or any colour on the wheel.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = CockpitColors.TextSecondary,
+            )
+            Spacer(Modifier.height(Space.m))
+            CarPaintPicker(state.carPaint, actions.onCarPaint)
         }
         CockpitCard(Modifier.fillMaxWidth()) {
             SectionLabel("Background")

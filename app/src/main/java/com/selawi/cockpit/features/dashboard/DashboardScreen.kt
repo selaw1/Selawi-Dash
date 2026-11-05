@@ -11,6 +11,8 @@ import com.selawi.cockpit.features.calls.CallBanner
 import com.selawi.cockpit.features.calls.CallInfo
 import com.selawi.cockpit.features.calls.CallState
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -44,6 +46,7 @@ import com.selawi.cockpit.features.media.MediaControls
 import com.selawi.cockpit.features.media.NowPlaying
 import com.selawi.cockpit.features.media.rememberCoverTint
 import com.selawi.cockpit.features.vehicle.DrivingState
+import com.selawi.cockpit.features.vehicle.CarPaint
 import com.selawi.cockpit.features.vehicle.VehiclePanel
 import com.selawi.cockpit.features.weather.ForecastStrip
 import com.selawi.cockpit.features.weather.SkyIcon
@@ -69,6 +72,7 @@ class DashboardState(
     /** Fixed time for screenshots; null shows the live clock. */
     val fixedTime: LocalDateTime? = null,
     val backdrop: Backdrop = Backdrop.CoverGlow,
+    val carPaint: String = CarPaint.Pearl,
 )
 
 @Composable
@@ -93,8 +97,11 @@ private fun CallSlot(call: CallInfo, onOpenPhone: () -> Unit) {
 private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit) {
     val is24 = DateFormat.is24HourFormat(LocalContext.current)
     // The cover glow lies behind the whole screen; the car panel fades into it, so there is no seam.
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+    // The car panel takes about two fifths of the width, never wider than on the Seal's own screen.
+    val panelWidth = (maxWidth * 0.4f).coerceIn(360.dp, 500.dp)
     Row(Modifier.fillMaxSize().backdrop(state.backdrop, state.playing)) {
-        VehiclePanel(state.driving, Modifier.width(500.dp).fillMaxHeight(), weather = state.weather)
+        VehiclePanel(state.driving, Modifier.width(panelWidth).fillMaxHeight(), weather = state.weather, paint = state.carPaint)
         Column(
             Modifier
                 .weight(1f)
@@ -108,6 +115,7 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
             ForecastStrip(state.weather, Modifier.fillMaxWidth(), is24)
         }
     }
+    }
 }
 
 /**
@@ -118,7 +126,7 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
 @Composable
 private fun CompactDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit) {
     Column(Modifier.fillMaxSize().backdrop(state.backdrop, state.playing)) {
-        VehiclePanel(state.driving, Modifier.fillMaxWidth().weight(1f), compact = true, weather = state.weather)
+        VehiclePanel(state.driving, Modifier.fillMaxWidth().weight(1f), compact = true, weather = state.weather, paint = state.carPaint)
         Column(
             Modifier.padding(start = Space.l, end = Space.l, bottom = Space.m),
             verticalArrangement = Arrangement.spacedBy(Space.m),
@@ -224,15 +232,31 @@ private fun Header(state: DashboardState, modifier: Modifier) {
     val date = now.format(DateTimeFormatter.ofPattern("EEEE, d MMMM", Locale.getDefault()))
     val weather = state.weather
 
-    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-        Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            Text(time, style = MaterialTheme.typography.displayMedium, color = CockpitColors.TextPrimary)
-            Text(date, style = MaterialTheme.typography.bodyLarge, color = CockpitColors.TextSecondary, modifier = Modifier.padding(bottom = 8.dp))
-        }
-        if (weather != null) {
-            SkyIcon(weather.sky, weather.isDay, Modifier.size(28.dp), size = 28.dp)
-            Text("${weather.temperature}°", style = MaterialTheme.typography.displaySmall, color = CockpitColors.TextPrimary)
-            Text(weather.condition, style = MaterialTheme.typography.bodyMedium, color = CockpitColors.TextSecondary)
+    BoxWithConstraints(modifier) {
+        // Narrower screens drop the weather words, then the date, before anything gets squeezed.
+        val showCondition = maxWidth >= 620.dp
+        val showDate = maxWidth >= 480.dp
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(Modifier.weight(1f), verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                Text(time, style = MaterialTheme.typography.displayMedium, color = CockpitColors.TextPrimary, maxLines = 1)
+                if (showDate) {
+                    Text(
+                        date,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = CockpitColors.TextSecondary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(bottom = 8.dp),
+                    )
+                }
+            }
+            if (weather != null) {
+                SkyIcon(weather.sky, weather.isDay, Modifier.size(28.dp), size = 28.dp)
+                Text("${weather.temperature}°", style = MaterialTheme.typography.displaySmall, color = CockpitColors.TextPrimary)
+                if (showCondition) {
+                    Text(weather.condition, style = MaterialTheme.typography.bodyMedium, color = CockpitColors.TextSecondary, maxLines = 1)
+                }
+            }
         }
     }
 }

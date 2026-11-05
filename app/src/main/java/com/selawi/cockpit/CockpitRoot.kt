@@ -29,6 +29,9 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -111,6 +114,10 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         val coverStatus by app.media.coverStatus.collectAsStateWithLifecycle()
         val motionSource by app.driving.motion.source.collectAsStateWithLifecycle()
         val backdrop by app.settings.backdrop.collectAsStateWithLifecycle(initialValue = Backdrop.CoverGlow)
+        // Car paint: the saved one, or the live one while the driver drags on the colour wheel.
+        val savedPaint by app.settings.carPaint.collectAsStateWithLifecycle(initialValue = "Pearl")
+        var previewPaint by remember { mutableStateOf<String?>(null) }
+        val carPaint = previewPaint ?: savedPaint
         val fullScreen by app.settings.fullScreen.collectAsStateWithLifecycle(initialValue = true)
         val keepOn by app.settings.keepScreenOn.collectAsStateWithLifecycle(initialValue = false)
         var crash by remember { mutableStateOf(CrashLog.read(activity)) }
@@ -151,7 +158,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     when (target) {
                         Destination.Home -> DashboardScreen(
                             compact = compact,
-                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop),
+                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint),
                             controls = controls,
                             onOpenPhone = app.calls::openPhone,
                         )
@@ -166,7 +173,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                             )
                         }
                         Destination.Settings -> Box(Modifier.padding(Space.l)) { SettingsScreen(
-                            state = SettingsState(fullScreen, keepOn, themeMode, crash, accent, coverStatus, motionSource, backdrop),
+                            state = SettingsState(fullScreen, keepOn, themeMode, crash, accent, coverStatus, motionSource, backdrop, carPaint),
                             actions = SettingsActions(
                                 onFullScreen = { scope.launch { app.settings.setFullScreen(it) } },
                                 onKeepOn = { scope.launch { app.settings.setKeepScreenOn(it) } },
@@ -185,6 +192,10 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                                     crash = null
                                 },
                                 onBackdrop = { scope.launch { app.settings.setBackdrop(it) } },
+                            onCarPaint = { paint, final ->
+                                previewPaint = paint
+                                if (final) scope.launch { app.settings.setCarPaint(paint) }
+                            },
                                 onAccent = { color, final ->
                                     previewing = true
                                     previewAccent = color
@@ -218,13 +229,25 @@ fun DashFrame(
             .background(CockpitColors.Background)
             .safeDrawingPadding(),
     ) {
-        val compact = maxWidth < 840.dp
-        Column(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxWidth().weight(1f)) { content(compact) }
-            Dock(selected, compact, onSelect, pinned, onOpenApp)
+        // Designed for the Seal 05's 12.8-inch screen (720 dp tall). Shorter screens, such as a
+        // 10.1-inch one or the car's own bars showing, get the whole interface proportionally
+        // smaller; the layout below then adapts to the width that leaves.
+        val density = LocalDensity.current
+        val scale = (maxHeight / DesignHeight).coerceIn(MinScale, 1f)
+        CompositionLocalProvider(LocalDensity provides Density(density.density * scale, density.fontScale)) {
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val compact = maxWidth < 840.dp
+                Column(Modifier.fillMaxSize()) {
+                    Box(Modifier.fillMaxWidth().weight(1f)) { content(compact) }
+                    Dock(selected, compact, onSelect, pinned, onOpenApp)
+                }
+            }
         }
     }
 }
+
+private val DesignHeight = 720.dp
+private const val MinScale = 0.7f
 
 /** Home and all apps on the left; pinned apps in the middle; settings on the right. */
 @Composable

@@ -12,6 +12,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -87,8 +88,16 @@ fun MediaCard(
     CockpitCard(modifier, padding = Space.l) {
         // Full layout: fill the card's height. Compact: size to the content, so it never collapses to nothing.
         val rowModifier = if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxWidth().weight(1f)
-        Row(rowModifier, horizontalArrangement = Arrangement.spacedBy(if (compact) 16.dp else 28.dp)) {
-            val coverModifier = Modifier.size(if (compact) 120.dp else 260.dp)
+        BoxWithConstraints(rowModifier) {
+        // The cover takes the room it has: up to 260 dp, never taller than the card or wider than
+        // about two fifths of it. On a short card the controls shrink a little too.
+        val cover = if (compact) 120.dp else minOf(260.dp, maxHeight, maxWidth * 0.4f)
+        val fit = if (compact) 1f else (maxHeight / 260.dp).coerceIn(0.78f, 1f)
+        Row(
+            if (compact) Modifier.fillMaxWidth() else Modifier.fillMaxSize(),
+            horizontalArrangement = Arrangement.spacedBy(if (compact) 16.dp else 28.dp * fit),
+        ) {
+            val coverModifier = Modifier.size(cover)
             Artwork(playing.art, coverModifier.align(Alignment.CenterVertically), tint)
             Column(Modifier.weight(1f).align(Alignment.CenterVertically)) {
                 Text(
@@ -111,21 +120,22 @@ fun MediaCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                Spacer(Modifier.height(if (compact) 12.dp else 22.dp))
+                Spacer(Modifier.height(if (compact) 12.dp else 22.dp * fit))
                 ProgressBar(playing)
-                Spacer(Modifier.height(if (compact) 10.dp else 14.dp))
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (compact) 16.dp else 28.dp)) {
-                    RoundIconButton(CockpitIcons.SkipPrevious, "Previous track", size = 56.dp, onClick = controls.previous)
+                Spacer(Modifier.height(if (compact) 10.dp else 14.dp * fit))
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (compact) 16.dp else 28.dp * fit)) {
+                    RoundIconButton(CockpitIcons.SkipPrevious, "Previous track", size = 56.dp * fit, onClick = controls.previous)
                     RoundIconButton(
                         if (playing.isPlaying) CockpitIcons.Pause else CockpitIcons.Play,
                         if (playing.isPlaying) "Pause" else "Play",
-                        size = 72.dp,
+                        size = 72.dp * fit,
                         primary = true,
                         onClick = controls.playPause,
                     )
-                    RoundIconButton(CockpitIcons.SkipNext, "Next track", size = 56.dp, onClick = controls.next)
+                    RoundIconButton(CockpitIcons.SkipNext, "Next track", size = 56.dp * fit, onClick = controls.next)
                 }
             }
+        }
         }
     }
 }

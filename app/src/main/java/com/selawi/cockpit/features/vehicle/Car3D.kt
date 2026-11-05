@@ -57,11 +57,12 @@ import kotlin.math.sin
  * road and everything moves at the real GPS speed.
  */
 @Composable
-fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Modifier) {
+fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Modifier, paint: String = CarPaint.Pearl) {
     val control = remember { CarControl().also { it.drive = if (state.driving) 1f else 0f } }
     var touched by rememberSaveable { mutableStateOf(false) }
     val hint by animateFloatAsState(if (touched || state.driving) 0f else 1f, tween(600), label = "hint")
     val latest = rememberUpdatedState(state)
+    control.paint = paint
 
     // One clock for the whole scene: eases the drive value, follows bends and moves the road.
     var travel by remember { mutableFloatStateOf(0f) }
@@ -147,7 +148,7 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
             drawCompass(view, compass, drive, letters, letterStyle)
         }
         if (LocalInspectionMode.current) {
-            CarStandIn(Modifier.fillMaxSize())
+            CarStandIn(Modifier.fillMaxSize(), CarPaint.swatch(paint))
         } else {
             LiveCar(Modifier.fillMaxSize(), state.speedKmh, state.driving, control)
         }
@@ -517,7 +518,7 @@ private fun DrawScope.drawPrecipitation(sky: Sky, clock: Float, speed: Float) {
 
 /** Simple drawn car for screenshot tests, where the 3D engine cannot run. */
 @Composable
-private fun CarStandIn(modifier: Modifier) {
+private fun CarStandIn(modifier: Modifier, paint: Color) {
     Canvas(modifier) {
         val w = size.width * 0.62f
         val h = w * 0.3f
@@ -533,7 +534,8 @@ private fun CarStandIn(modifier: Modifier) {
             lineTo(left + w, base)
             close()
         }
-        drawPath(body, Brush.verticalGradient(listOf(Color(0xFFE9EEF2), Color(0xFF9AA6B2)), startY = base - h * 1.15f, endY = base))
+        val shade = Color(paint.red * 0.62f, paint.green * 0.62f, paint.blue * 0.66f)
+        drawPath(body, Brush.verticalGradient(listOf(paint, shade), startY = base - h * 1.15f, endY = base))
         val glass = Path().apply {
             moveTo(left + w * 0.3f, base - h * 0.7f)
             quadraticTo(left + w * 0.42f, base - h * 1.02f, left + w * 0.58f, base - h * 1.0f)

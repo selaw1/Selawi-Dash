@@ -18,6 +18,12 @@ class SettingsStore(private val context: Context) {
     private val themeKey = stringPreferencesKey("theme")
     private val accentKey = androidx.datastore.preferences.core.intPreferencesKey("accent")
     private val backdropKey = stringPreferencesKey("backdrop")
+    private val carPaintKey = stringPreferencesKey("car_paint")
+
+    /** The 3D car's paint (see CarPaint); pearl white by default. */
+    val carPaint: Flow<String> = context.dataStore.data.map { it[carPaintKey] ?: "Pearl" }
+
+    suspend fun setCarPaint(paint: String) = context.dataStore.edit { it[carPaintKey] = paint }
 
     /** The home screen's background. */
     val backdrop: Flow<Backdrop> = context.dataStore.data.map { prefs ->
