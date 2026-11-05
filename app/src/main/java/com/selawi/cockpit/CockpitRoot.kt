@@ -195,7 +195,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     }
                 }
             }
-            StartupIntro()
+            StartupIntro(weather)
         }
     }
 }

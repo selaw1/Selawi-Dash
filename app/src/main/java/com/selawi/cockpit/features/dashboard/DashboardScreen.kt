@@ -49,6 +49,13 @@ import com.selawi.cockpit.features.weather.ForecastStrip
 import com.selawi.cockpit.features.weather.SkyIcon
 import com.selawi.cockpit.features.weather.Weather
 import kotlinx.coroutines.delay
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.withFrameNanos
+import kotlin.math.cos
+import kotlin.math.exp
+import kotlin.math.sin
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import java.util.Locale
@@ -122,7 +129,11 @@ private fun CompactDashboard(state: DashboardState, controls: MediaControls, onO
     }
 }
 
-/** The chosen background, drawn softly behind the whole home screen. */
+/**
+ * The chosen background, drawn softly behind the whole home screen. While a song plays it comes
+ * alive: the colour pulses at a steady 120 beats a minute, swells and drifts slowly. The car does
+ * not share its audio with apps, so this is a rhythm, not the song's own beat.
+ */
 @Composable
 private fun Modifier.backdrop(backdrop: Backdrop, playing: NowPlaying): Modifier {
     val tint = rememberCoverTint(playing)
@@ -130,22 +141,52 @@ private fun Modifier.backdrop(backdrop: Backdrop, playing: NowPlaying): Modifier
     val dark = CockpitColors.isDark
     // The cover glow only shows while something is playing.
     val strength = if (backdrop == Backdrop.CoverGlow && !playing.hasTrack) 0f else if (dark) 0.30f else 0.10f
-    return drawBehind { drawBackdrop(backdrop, tint, accent, strength) }
+    val motion by animateFloatAsState(if (playing.isPlaying) 1f else 0f, tween(1_200), label = "musicMotion")
+    var clock by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(playing.isPlaying) {
+        var last = 0L
+        while (playing.isPlaying || motion > 0f) {
+            withFrameNanos { now ->
+                if (last != 0L) clock += ((now - last) / 1e9f).coerceAtMost(0.1f)
+                last = now
+            }
+        }
+    }
+    return drawBehind { drawBackdrop(backdrop, tint, accent, strength, motion, clock) }
 }
 
 /**
  * Soft colour washes. Centred on the music side and wide enough to drift over the car panel's
- * fading edge, so there is no seam. Also used for the previews in Settings.
+ * fading edge, so there is no seam. [motion] (0 … 1) brings in the pulse and drift at time [t].
+ * Also used for the previews in Settings.
  */
-fun DrawScope.drawBackdrop(backdrop: Backdrop, coverTint: Color, accent: Color, strength: Float) {
+fun DrawScope.drawBackdrop(
+    backdrop: Backdrop,
+    coverTint: Color,
+    accent: Color,
+    strength: Float,
+    motion: Float = 0f,
+    t: Float = 0f,
+) {
     if (strength <= 0f) return
-    fun blob(colour: Color, x: Float, y: Float, r: Float, k: Float = 1f) = drawRect(
-        Brush.radialGradient(
-            listOf(colour.copy(alpha = strength * k), colour.copy(alpha = strength * k * 0.35f), Color.Transparent),
-            center = Offset(size.width * x, size.height * y),
-            radius = size.width * r,
-        ),
-    )
+    val beat = exp(-((t * 2f) % 1f) * 4f)
+    var index = 0
+    fun blob(colour: Color, x: Float, y: Float, r: Float, k: Float = 1f) {
+        val i = index++
+        // Each patch of colour wanders on its own slow loop and breathes with the beat.
+        val cx = x + motion * 0.07f * sin(t * 0.35f + i * 2.1f)
+        val cy = y + motion * 0.09f * cos(t * 0.27f + i * 1.7f)
+        val swell = 0.5f + 0.5f * sin(t * 0.6f + i)
+        val a = strength * k * (1f + motion * (0.45f * beat + 0.2f * swell))
+        val radius = size.width * r * (1f + motion * (0.06f * beat + 0.04f * swell))
+        drawRect(
+            Brush.radialGradient(
+                listOf(colour.copy(alpha = a.coerceAtMost(1f)), colour.copy(alpha = (a * 0.35f).coerceAtMost(1f)), Color.Transparent),
+                center = Offset(size.width * cx, size.height * cy),
+                radius = radius,
+            ),
+        )
+    }
     when (backdrop) {
         Backdrop.Plain -> Unit
         Backdrop.CoverGlow -> blob(coverTint, 0.62f, 0.48f, 0.62f)

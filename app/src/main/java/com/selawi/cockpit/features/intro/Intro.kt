@@ -33,6 +33,11 @@ import androidx.compose.ui.unit.sp
 import com.selawi.cockpit.R
 import com.selawi.cockpit.core.design.CockpitColors
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+import com.selawi.cockpit.features.weather.Weather
+import java.time.LocalTime
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 
 /**
  * The opening moment, once each time the app starts: the logo glows up on black, the dashboard
@@ -41,15 +46,22 @@ import kotlinx.coroutines.launch
 object Intro {
     /** When the headlights start their flick, or 0 when no intro ran (lights simply on). */
     @Volatile var lightsAt = 0L
+    /** When the 3D car starts swinging round from the back to the front. */
+    @Volatile var swingAt = 0L
     private var played = false
 
     /** True only the first time it is asked in this run of the app. */
     fun claim(): Boolean {
         if (played) return false
         played = true
-        lightsAt = SystemClock.elapsedRealtime() + 1_300
+        val now = SystemClock.elapsedRealtime()
+        lightsAt = now + FADE_AT_MS + 500
+        swingAt = now + FADE_AT_MS - 300
         return true
     }
+
+    /** When the intro starts fading to the dashboard: logo, greeting, a moment to read. */
+    const val FADE_AT_MS = 2_400L
 
     /** 0 … 1: headlight brightness now: off, two quick flickers, then a smooth rise to full. */
     fun headlights(now: Long = SystemClock.elapsedRealtime()): Float {
@@ -68,21 +80,26 @@ object Intro {
 }
 
 @Composable
-fun StartupIntro() {
+fun StartupIntro(weather: Weather? = null) {
     var show by remember { mutableStateOf(Intro.claim()) }
     if (!show) return
     val logo = remember { Animatable(0f) }
     val glow = remember { Animatable(0f) }
     val scale = remember { Animatable(0.84f) }
     val cover = remember { Animatable(1f) }
+    val words = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        launch { scale.animateTo(1f, tween(1_300, easing = FastOutSlowInEasing)) }
+        val start = SystemClock.elapsedRealtime()
+        launch { scale.animateTo(1f, tween(1_500, easing = FastOutSlowInEasing)) }
         logo.animateTo(1f, tween(450))
-        glow.animateTo(1f, tween(450))
-        glow.animateTo(0.55f, tween(350))
-        cover.animateTo(0f, tween(700, easing = FastOutSlowInEasing))
+        launch { glow.animateTo(1f, tween(450)); glow.animateTo(0.55f, tween(500)) }
+        words.animateTo(1f, tween(500))
+        // Hold so the greeting can be read, then fade to the dashboard.
+        delay((Intro.FADE_AT_MS - (SystemClock.elapsedRealtime() - start)).coerceAtLeast(0))
+        cover.animateTo(0f, tween(800, easing = FastOutSlowInEasing))
         show = false
     }
+    val greeting = remember { greeting(LocalTime.now().hour) }
     val accent = CockpitColors.Accent
     Box(
         Modifier
@@ -115,13 +132,46 @@ fun StartupIntro() {
                         },
                 )
             }
-            Text(
-                "SELAWI DASH",
-                style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 8.sp),
-                color = Color.White.copy(alpha = 0.85f),
-                // The logo image has empty space around the mark; pull the name up under it.
-                modifier = Modifier.offset(y = (-96).dp).graphicsLayer { alpha = glow.value },
-            )
+            // The logo image has empty space around the mark; pull the words up under it.
+            Column(
+                Modifier.offset(y = (-96).dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(
+                    "SELAWI DASH",
+                    style = MaterialTheme.typography.titleMedium.copy(letterSpacing = 8.sp),
+                    color = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.graphicsLayer { alpha = logo.value },
+                )
+                Spacer(Modifier.height(28.dp))
+                Text(
+                    greeting,
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = Color.White,
+                    modifier = Modifier.graphicsLayer {
+                        alpha = words.value
+                        translationY = (1f - words.value) * 12.dp.toPx()
+                    },
+                )
+                if (weather != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "${weather.temperature}° · ${weather.condition}" + (if (weather.place.isNotBlank() && weather.place != "Here") " in ${weather.place}" else ""),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White.copy(alpha = 0.6f),
+                        modifier = Modifier.graphicsLayer {
+                            alpha = words.value
+                            translationY = (1f - words.value) * 12.dp.toPx()
+                        },
+                    )
+                }
+            }
         }
     }
+}
+
+private fun greeting(hour: Int) = when (hour) {
+    in 5..11 -> "Good morning"
+    in 12..16 -> "Good afternoon"
+    else -> "Good evening"
 }

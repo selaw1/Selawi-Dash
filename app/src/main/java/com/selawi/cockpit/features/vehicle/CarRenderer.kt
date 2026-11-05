@@ -1,6 +1,7 @@
 package com.selawi.cockpit.features.vehicle
 
 import android.content.Context
+import android.os.SystemClock
 import android.opengl.Matrix
 import android.view.Choreographer
 import android.view.Surface
@@ -17,6 +18,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.android.filament.Box
+import com.selawi.cockpit.features.intro.Intro
 import com.google.android.filament.Camera
 import com.google.android.filament.Engine
 import com.google.android.filament.EntityManager
@@ -168,6 +170,8 @@ private class CarRenderer(
     private var clock = 0f
     private var userYaw = FRONT_YAW
     private var resetting = false
+    // At start-up the car faces away, then swings round to the front as the intro fades.
+    private var introSwing = Intro.swingAt > SystemClock.elapsedRealtime()
     private var wheelAngle = 0f
     private var lastFrame = 0L
     private var running = false
@@ -335,6 +339,15 @@ private class CarRenderer(
         val diff = userYaw - yawDeg
         yawDeg += diff * min(1f, dt * if (resetting) 3f else 14f)
         if (abs(diff) < 0.05f) resetting = false
+        if (introSwing) {
+            val t = (SystemClock.elapsedRealtime() - Intro.swingAt) / INTRO_SWING_MS
+            if (t >= 1f) {
+                introSwing = false
+                yawDeg = userYaw
+            } else {
+                yawDeg = FRONT_YAW - 180f * (1f - CarScene.smooth(t.coerceIn(0f, 1f)))
+            }
+        }
 
         // Driving: the car turns to face down the road (away from the camera) as the camera swings
         // behind it; both follow the same eased drive value, so the change is one smooth move.
@@ -367,7 +380,7 @@ private class CarRenderer(
             tm.setTransform(w.instance, m)
         }
         lightBrakes(control.brake.coerceIn(0f, 1f))
-        lightHeadlights(com.selawi.cockpit.features.intro.Intro.headlights())
+        lightHeadlights(Intro.headlights())
     }
 
     /** The model's brake and head light materials, so they can light up. */
@@ -497,6 +510,7 @@ private class CarRenderer(
 
     private companion object {
         const val FRONT_YAW = 35f
+        const val INTRO_SWING_MS = 2400f
         const val WHEEL_RADIUS_M = 0.34f
         val WHEEL_NODES = listOf("WheelFrontL", "WheelFrontR", "WheelRearL", "WheelRearR")
     }

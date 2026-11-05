@@ -81,14 +81,17 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
         var lastHeadingAt = 0f
         var headingRate = 0f
         var turnRate = 0f
+        var wasDriving = latest.value.driving
         while (true) {
             withFrameNanos { now ->
                 val dt = if (last == 0L) 0f else ((now - last) / 1e9f).coerceIn(0f, 0.1f)
                 last = now
                 val s = latest.value
-                // About 1.6 s from parked to driving and back.
+                // About 1.6 s from parked to driving; parking is a slower swing round to the front.
                 val target = if (s.driving) 1f else 0f
-                drive += (target - drive).coerceIn(-dt / 1.6f, dt / 1.6f)
+                drive += (target - drive).coerceIn(-dt / 2.4f, dt / 1.6f)
+                if (wasDriving && !s.driving) control.reset()
+                wasDriving = s.driving
                 clock += dt
                 // Bend from how fast the GPS heading turns (degrees per second between fixes),
                 // smoothed so the road and the wheels never twitch.
