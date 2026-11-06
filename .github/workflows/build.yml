@@ -7,8 +7,8 @@ on:
       - "gradle/**"
       - "*.gradle.kts"
       - "gradle.properties"
-      - "site/**"
-      - ".github/**"
+      # Page-only changes go through site.yml, which does not rebuild the app.
+      - ".github/workflows/build.yml"
   workflow_dispatch:
 
 permissions:
