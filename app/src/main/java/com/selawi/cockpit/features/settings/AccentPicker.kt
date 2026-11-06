@@ -10,6 +10,10 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
@@ -47,20 +51,22 @@ private val presets = listOf(
  * Accent colour: a colour wheel (hue around, strength outwards) plus quick picks.
  * [onChange] is called live while dragging ([final] false) and once more when the finger lifts.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun AccentPicker(current: Color?, onChange: (color: Color?, final: Boolean) -> Unit) {
-    Row(horizontalArrangement = Arrangement.spacedBy(Space.xl), verticalAlignment = Alignment.CenterVertically) {
-        ColorWheel(current ?: DefaultAccent, onChange, Modifier.size(220.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(Space.m)) {
+fun AccentPicker(current: Color?, onChange: (color: Color?, final: Boolean) -> Unit, wheelSize: Dp = 220.dp) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.xl), verticalAlignment = Alignment.CenterVertically) {
+        ColorWheel(current ?: DefaultAccent, onChange, Modifier.size(wheelSize))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.m)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.m)) {
-                Box(Modifier.size(48.dp).clip(CircleShape).background(CockpitColors.Accent))
+                Box(Modifier.size(40.dp).clip(CircleShape).background(CockpitColors.Accent))
                 Text(
                     if (current == null) "Default blue" else "Your colour",
                     style = MaterialTheme.typography.titleMedium,
                     color = CockpitColors.TextPrimary,
                 )
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            // Wraps onto a second line when the space is narrow, instead of running off the edge.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 presets.forEach { color ->
                     val selected = current?.toArgb() == color.toArgb() || (current == null && color == DefaultAccent)
                     Box(
@@ -79,8 +85,9 @@ fun AccentPicker(current: Color?, onChange: (color: Color?, final: Boolean) -> U
 }
 
 @Composable
-internal fun ColorWheel(selected: Color, onChange: (Color?, Boolean) -> Unit, modifier: Modifier) {
-    val hsv = FloatArray(3).also { android.graphics.Color.colorToHSV(selected.toArgb(), it) }
+internal fun ColorWheel(selected: Color?, onChange: (Color?, Boolean) -> Unit, modifier: Modifier) {
+    // No marker when the current colour is not one the wheel can make (a dark preset, say).
+    val hsv = selected?.let { c -> FloatArray(3).also { android.graphics.Color.colorToHSV(c.toArgb(), it) } }
     val report = rememberUpdatedState(onChange)
     Canvas(
         modifier
@@ -122,6 +129,10 @@ internal fun ColorWheel(selected: Color, onChange: (Color?, Boolean) -> Unit, mo
         )
         drawCircle(Brush.radialGradient(listOf(Color.White, Color.White.copy(alpha = 0f)), center, r), radius = r)
         // Knob where the current colour sits.
+        if (hsv == null) {
+            drawCircle(Color.Black.copy(alpha = 0.1f), radius = r, style = Stroke(1.dp.toPx()))
+            return@Canvas
+        }
         val angle = Math.toRadians(hsv[0].toDouble())
         val dist = hsv[1] * r
         val knob = Offset(center.x + (cos(angle) * dist).toFloat(), center.y + (sin(angle) * dist).toFloat())

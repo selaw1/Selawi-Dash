@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -104,12 +106,16 @@ private fun ColourCard(panel: ColourPanel, carPaint: String, accent: Color?, act
                     )
                     PillButton("Done", primary = true, onClick = onClose)
                 }
-                Spacer(Modifier.height(16.dp))
-                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.CenterStart) {
+                // The picker sits in the middle of the space left, the wheel as large as fits.
+                BoxWithConstraints(
+                    Modifier.fillMaxWidth().weight(1f).padding(top = 12.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    val wheel = minOf(maxHeight, 230.dp, maxWidth * 0.36f)
                     if (shown == ColourPanel.Accent) {
-                        AccentPicker(accent, actions.onAccent)
+                        AccentPicker(accent, actions.onAccent, wheelSize = wheel)
                     } else {
-                        CarPaintPicker(carPaint, actions.onCarPaint, preview = false)
+                        CarPaintPicker(carPaint, actions.onCarPaint, preview = false, wheelSize = wheel)
                     }
                 }
             }

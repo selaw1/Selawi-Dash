@@ -14,6 +14,19 @@ object CarPaint {
     const val Graphite = "Graphite"
     val builtIn = listOf(Pearl, Carmine, Graphite)
 
+    /** Common car colours, as one-tap picks after the model's own three paints. */
+    val common = listOf(
+        "Black" to Color(0xFF15171A),
+        "Silver" to Color(0xFFB8BEC6),
+        "Grey" to Color(0xFF6B7280),
+        "Blue" to Color(0xFF1F4E8C),
+        "Green" to Color(0xFF2F5D50),
+        "Sage" to Color(0xFF8A9A5B),
+    )
+
+    /** True for a colour picked on the wheel, as opposed to one of the named paints. */
+    fun isWheelColour(paint: String) = customColor(paint) != null && common.none { custom(it.second) == paint }
+
     fun custom(color: Color) = "#%08X".format(color.toArgb())
 
     /** The colour this paint looks like, for swatches and the screenshot stand-in. */
@@ -31,6 +44,6 @@ object CarPaint {
         Pearl -> "Pearl white"
         Carmine -> "Carmine red"
         Graphite -> "Graphite"
-        else -> "Your colour"
+        else -> common.firstOrNull { custom(it.second) == paint }?.first ?: "Your colour"
     }
 }

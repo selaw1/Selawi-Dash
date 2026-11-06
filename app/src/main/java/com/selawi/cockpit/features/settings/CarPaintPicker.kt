@@ -7,6 +7,9 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.size
@@ -25,37 +28,39 @@ import com.selawi.cockpit.features.vehicle.Car3D
 import com.selawi.cockpit.features.vehicle.CarPaint
 import com.selawi.cockpit.features.vehicle.DrivingState
 
-/** Common car colours, as one-tap picks after the model's own three paints. */
-private val carColours = listOf(
-    Color(0xFF15171A), // black
-    Color(0xFFB8BEC6), // silver
-    Color(0xFF6B7280), // grey
-    Color(0xFF1F4E8C), // blue
-    Color(0xFF2F5D50), // green
-    Color(0xFF8A9A5B), // sage
-)
-
 /**
  * The 3D car's colour: the model's own paints, common colours and a colour wheel, beside a live
  * preview of the car. [onChange] runs live while dragging ([final] false) and once on release.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun CarPaintPicker(paint: String, onChange: (paint: String, final: Boolean) -> Unit, preview: Boolean = true) {
-    Row(horizontalArrangement = Arrangement.spacedBy(Space.xl), verticalAlignment = Alignment.CenterVertically) {
+fun CarPaintPicker(
+    paint: String,
+    onChange: (paint: String, final: Boolean) -> Unit,
+    preview: Boolean = true,
+    wheelSize: Dp = 200.dp,
+) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(Space.xl), verticalAlignment = Alignment.CenterVertically) {
         ColorWheel(
-            CarPaint.customColor(paint) ?: Color(0xFF1F4E8C),
+            // The marker only shows for a colour picked on the wheel.
+            if (CarPaint.isWheelColour(paint)) CarPaint.customColor(paint) else null,
             { colour, final -> if (colour != null) onChange(CarPaint.custom(colour), final) },
-            Modifier.size(200.dp),
+            Modifier.size(wheelSize),
         )
-        Column(verticalArrangement = Arrangement.spacedBy(Space.m)) {
-            Text(CarPaint.label(paint), style = MaterialTheme.typography.titleMedium, color = CockpitColors.TextPrimary)
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Space.m)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Space.m)) {
+                Box(
+                    Modifier.size(40.dp).clip(CircleShape).background(CarPaint.swatch(paint))
+                        .border(1.dp, CockpitColors.Stroke, CircleShape),
+                )
+                Text(CarPaint.label(paint), style = MaterialTheme.typography.titleMedium, color = CockpitColors.TextPrimary)
+            }
+            // Wraps onto more lines when the space is narrow, instead of running off the edge.
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 CarPaint.builtIn.forEach { name ->
                     Swatch(CarPaint.swatch(name), selected = paint == name) { onChange(name, true) }
                 }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                carColours.forEach { colour ->
+                CarPaint.common.forEach { (_, colour) ->
                     val value = CarPaint.custom(colour)
                     Swatch(colour, selected = paint == value) { onChange(value, true) }
                 }
