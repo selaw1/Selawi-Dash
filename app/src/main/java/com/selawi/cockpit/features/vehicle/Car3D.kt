@@ -46,7 +46,9 @@ import androidx.compose.ui.input.pointer.util.VelocityTracker
 import androidx.compose.ui.platform.LocalInspectionMode
 import com.selawi.cockpit.core.design.CockpitColors
 import com.selawi.cockpit.core.design.Space
+import kotlin.math.abs
 import kotlin.math.cos
+import kotlin.math.pow
 import kotlin.math.exp
 import kotlin.math.sin
 
@@ -94,23 +96,27 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
                 if (wasDriving && !s.driving) control.reset()
                 wasDriving = s.driving
                 clock += dt
-                // Bend from how fast the GPS heading turns (degrees per second between fixes),
-                // smoothed so the road and the wheels never twitch.
+                // Bend from how fast the GPS heading turns, measured over at least 0.9 s however
+                // often the GPS reports, and smoothed so the road and the wheels never twitch.
                 val heading = s.headingDeg
-                if (heading != null && heading != lastHeading) {
-                    val prev = lastHeading
-                    if (prev != null) {
-                        val delta = ((heading - prev + 540f) % 360f) - 180f
-                        headingRate = delta / (clock - lastHeadingAt).coerceIn(0.5f, 3f)
-                    }
+                if (heading == null) {
+                    lastHeading = null
+                } else if (lastHeading == null) {
+                    lastHeading = heading
+                    lastHeadingAt = clock
+                } else if (clock - lastHeadingAt >= 0.9f) {
+                    val delta = ((heading - lastHeading!! + 540f) % 360f) - 180f
+                    headingRate = if (clock - lastHeadingAt <= 3f) delta / (clock - lastHeadingAt) else 0f
                     lastHeading = heading
                     lastHeadingAt = clock
                 }
-                // No new heading for a while: the road is straight again.
-                if (clock - lastHeadingAt > 2.5f) headingRate = 0f
+                // No heading for a while (stopped): the road is straight again.
+                if (heading == null || s.speedKmh < 5) headingRate = 0f
                 turnRate += (headingRate - turnRate) * (1 - exp(-dt * 2.5f))
-                // About 28° a second (a sharp city corner) bends the road fully.
-                steer = (turnRate / 28f).coerceIn(-1f, 1f)
+                // About 28° a second (a sharp city corner) bends the road fully; the slight curve
+                // keeps small drifts gentler while full turns still bend fully.
+                val bendAmount = (abs(turnRate) / 28f).coerceIn(0f, 1f).pow(1.08f)
+                steer = if (turnRate < 0) -bendAmount else bendAmount
                 if (heading != null) {
                     val d = ((heading - compass + 540f) % 360f) - 180f
                     compass = (compass + d * (1 - exp(-dt * 3f)) + 360f) % 360f
@@ -137,15 +143,15 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
     val sky = weather?.sky
     val isDay = weather?.isDay ?: true
     Box(modifier.clipToBounds()) {
-        // Sky and weather fade out towards the top, so they never end in a hard line.
+        // Sky, road and compass in one layer whose edges fade into the panel, so the scene has no
+        // box around it; the sky also fades well before the top.
         Canvas(Modifier.fillMaxSize().graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
-            drawSky(CarScene.view(size.width.toDouble() / size.height, drive, speedFx), sky, isDay, clock)
-            fadeTop()
-        }
-        Canvas(Modifier.fillMaxSize()) {
             val view = CarScene.view(size.width.toDouble() / size.height, drive, speedFx)
+            drawSky(view, sky, isDay, clock)
+            fadeTop()
             drawScene(view, drive, travel, steer, speedFx, brake, boost, wet = sky == Sky.Rain || sky == Sky.Storm)
             drawCompass(view, compass, drive, letters, letterStyle)
+            fadeEdges()
         }
         if (LocalInspectionMode.current) {
             CarStandIn(Modifier.fillMaxSize(), CarPaint.swatch(paint))
@@ -165,6 +171,7 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
             Canvas(Modifier.fillMaxSize().graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
                 drawPrecipitation(sky, clock, speedFx)
                 fadeTop()
+                fadeEdges()
             }
         }
         // Touch layer above the 3D view: drag to turn the car, double-tap to face it front again.
@@ -418,6 +425,12 @@ private fun DrawScope.drawIndicator(control: CarControl, turn: Turn, drive: Floa
         val g = 40f * density
         drawCircle(Brush.radialGradient(listOf(SignalAmber.copy(alpha = 0.25f), Color.Transparent), ground, g), radius = g, center = ground)
     }
+}
+
+/** Fades what is already drawn to nothing at the left, right and bottom edges. */
+private fun DrawScope.fadeEdges() {
+    drawRect(Brush.horizontalGradient(0f to Color.Transparent, 0.1f to Color.Black, 0.9f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+    drawRect(Brush.verticalGradient(0.82f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
 }
 
 /** Fades what is already drawn to nothing at the top edge. */

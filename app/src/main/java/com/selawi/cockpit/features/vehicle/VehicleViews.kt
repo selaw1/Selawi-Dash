@@ -44,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.selawi.cockpit.core.design.CockpitColors
 import com.selawi.cockpit.core.design.Space
 import java.util.Locale
@@ -73,9 +74,11 @@ fun VehiclePanel(
                     blendMode = BlendMode.DstOut,
                 )
             }
-            .padding(start = 32.dp, end = 32.dp, top = if (compact) 16.dp else 28.dp, bottom = if (compact) 4.dp else 24.dp),
+            // Side padding is on the text rows only, so the car scene runs edge to edge.
+            .padding(top = if (compact) 16.dp else 28.dp, bottom = if (compact) 4.dp else 24.dp),
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        val side = Modifier.padding(horizontal = 32.dp)
+        Row(side, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(
                 if (state.driving) "DRIVING" else "PARKED",
                 style = MaterialTheme.typography.labelMedium,
@@ -93,10 +96,16 @@ fun VehiclePanel(
             MotionTag(state.motion)
         }
         // Narrow window (split screen): a smaller speed, so the car keeps its room.
-        Row(verticalAlignment = Alignment.Bottom, modifier = Modifier.fillMaxWidth().padding(top = 6.dp)) {
+        Row(verticalAlignment = Alignment.Bottom, modifier = side.fillMaxWidth().padding(top = 6.dp)) {
             // The speed turns brake-red while the car slows hard enough to count as braking.
             val braking = state.motion.motion == Motion.Braking || state.motion.motion == Motion.HardBraking
-            val speedColor by animateColorAsState(if (braking) BrakeRed else CockpitColors.TextPrimary, tween(200), label = "speedColour")
+            // Accelerating turns it the accent colour; a steady pace keeps the normal text colour.
+            val speedTarget = when {
+                braking -> BrakeRed
+                state.motion.motion == Motion.Accelerating -> CockpitColors.Accent
+                else -> CockpitColors.TextPrimary
+            }
+            val speedColor by animateColorAsState(speedTarget, tween(250), label = "speedColour")
             Text(
                 "$speed",
                 style = if (compact) MaterialTheme.typography.displayMedium else MaterialTheme.typography.displayLarge,
@@ -114,15 +123,20 @@ fun VehiclePanel(
         Car3D(state, weather, Modifier.fillMaxWidth().weight(1f), paint)
         // The trip row is left out of the narrow layout; the full screen shows it.
         if (compact) return@Column
-        Spacer(Modifier.height(Space.m))
-        Box(Modifier.fillMaxWidth().height(1.dp).background(CockpitColors.Stroke))
+        // A hairline that fades out at both ends, so it does not box the car in.
+        Box(
+            side.fillMaxWidth().height(1.dp).background(
+                Brush.horizontalGradient(listOf(Color.Transparent, CockpitColors.Stroke, CockpitColors.Stroke, Color.Transparent)),
+            ),
+        )
         Spacer(Modifier.height(Space.m))
         val trip = state.trip
-        Row(Modifier.fillMaxWidth()) {
-            TripStat(String.format(Locale.US, "%.1f", trip.distanceKm), "km today", Modifier.weight(1f))
-            TripStat(minutes(trip.movingSeconds), "driving", Modifier.weight(1f))
-            TripStat("${trip.averageKmh}", "avg km/h", Modifier.weight(1f))
-            TripStat("${trip.maxKmh}", "top km/h", Modifier.weight(1f))
+        Row(side.fillMaxWidth()) {
+            TripStat(String.format(Locale.US, "%.1f", trip.distanceKm), "KM TRIP", Modifier.weight(1f))
+            TripStat(minutes(trip.movingSeconds), "DRIVING", Modifier.weight(1f))
+            TripStat("${trip.averageKmh}", "AVG KM/H", Modifier.weight(1f))
+            TripStat("${trip.maxKmh}", "TOP KM/H", Modifier.weight(1f))
+            TripStat("${trip.stops}", "STOPS", Modifier.weight(1f))
         }
     }
 }
@@ -250,10 +264,16 @@ private fun BrakeSymbol(colour: Color, modifier: Modifier) {
 
 @Composable
 private fun TripStat(value: String, label: String, modifier: Modifier) {
-    // Each number and its label sit centred in their quarter of the row, under the car.
+    // Each number and its label sit centred in their part of the row, under the car.
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.headlineMedium, color = CockpitColors.TextPrimary)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = CockpitColors.TextSecondary)
+        Text(value, style = MaterialTheme.typography.headlineMedium, color = CockpitColors.TextPrimary, maxLines = 1)
+        Spacer(Modifier.height(2.dp))
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.2.sp),
+            color = CockpitColors.TextTertiary,
+            maxLines = 1,
+        )
     }
 }
 

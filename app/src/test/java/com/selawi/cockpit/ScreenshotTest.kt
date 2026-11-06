@@ -62,7 +62,7 @@ class ScreenshotTest {
 
     @Test
     fun dashboardBraking() = shot(Destination.Home) { compact ->
-        Dashboard(compact, DrivingState(speedKmh = 41, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96), motion = MotionState(Motion.Braking, 0.8f, -4.2f), lateral = 1.4f, signal = Turn.Right))
+        Dashboard(compact, DrivingState(speedKmh = 41, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96, 7), motion = MotionState(Motion.Braking, 0.8f, -4.2f), lateral = 1.4f, signal = Turn.Right))
     }
 
     @Test
@@ -154,8 +154,8 @@ class ScreenshotTest {
         SettingsScreen(SettingsState(fullScreen = true, keepOn = false, theme = ThemeMode.Auto, crash = null), SettingsActions())
     }
 
-    private val parked = DrivingState(trip = Trip(distanceKm = 23.4, movingSeconds = 2460, maxKmh = 96))
-    private val moving = DrivingState(speedKmh = 62, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96))
+    private val parked = DrivingState(trip = Trip(distanceKm = 23.4, movingSeconds = 2460, maxKmh = 96, stops = 7))
+    private val moving = DrivingState(speedKmh = 62, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96, 7))
 
     @Composable
     private fun Dashboard(

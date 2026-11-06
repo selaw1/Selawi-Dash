@@ -158,9 +158,10 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     when (target) {
                         Destination.Home -> DashboardScreen(
                             compact = compact,
-                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint),
+                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint, theme = themeMode),
                             controls = controls,
                             onOpenPhone = app.calls::openPhone,
+                        onTheme = { scope.launch { app.settings.setTheme(it) } },
                         )
                         Destination.Apps -> Box(Modifier.padding(Space.l)) {
                             LaunchedEffect(Unit) { app.apps.refresh() }

@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.selawi.cockpit.data.local.Backdrop
+import com.selawi.cockpit.data.local.ThemeMode
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.selawi.cockpit.core.design.CockpitColors
@@ -48,7 +49,6 @@ import com.selawi.cockpit.features.media.rememberCoverTint
 import com.selawi.cockpit.features.vehicle.DrivingState
 import com.selawi.cockpit.features.vehicle.CarPaint
 import com.selawi.cockpit.features.vehicle.VehiclePanel
-import com.selawi.cockpit.features.weather.ForecastStrip
 import com.selawi.cockpit.features.weather.SkyIcon
 import com.selawi.cockpit.features.weather.Weather
 import kotlinx.coroutines.delay
@@ -73,11 +73,18 @@ class DashboardState(
     val fixedTime: LocalDateTime? = null,
     val backdrop: Backdrop = Backdrop.CoverGlow,
     val carPaint: String = CarPaint.Pearl,
+    val theme: ThemeMode = ThemeMode.Auto,
 )
 
 @Composable
-fun DashboardScreen(compact: Boolean, state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit = {}) {
-    if (compact) CompactDashboard(state, controls, onOpenPhone) else WideDashboard(state, controls, onOpenPhone)
+fun DashboardScreen(
+    compact: Boolean,
+    state: DashboardState,
+    controls: MediaControls,
+    onOpenPhone: () -> Unit = {},
+    onTheme: (ThemeMode) -> Unit = {},
+) {
+    if (compact) CompactDashboard(state, controls, onOpenPhone) else WideDashboard(state, controls, onOpenPhone, onTheme)
 }
 
 /** Slides in above the music while a call rings or runs. */
@@ -94,8 +101,7 @@ private fun CallSlot(call: CallInfo, onOpenPhone: () -> Unit) {
 
 /** The car panel on the left; time, music and the forecast on the right. */
 @Composable
-private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit) {
-    val is24 = DateFormat.is24HourFormat(LocalContext.current)
+private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit, onTheme: (ThemeMode) -> Unit) {
     // The cover glow lies behind the whole screen; the car panel fades into it, so there is no seam.
     BoxWithConstraints(Modifier.fillMaxSize()) {
     // The car panel takes about two fifths of the width, never wider than on the Seal's own screen.
@@ -112,7 +118,7 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
             Header(state, Modifier.fillMaxWidth())
             CallSlot(state.call, onOpenPhone)
             MediaCard(state.playing, controls, Modifier.fillMaxWidth().weight(1f))
-            ForecastStrip(state.weather, Modifier.fillMaxWidth(), is24)
+            QuickControls(state.theme, onTheme, Modifier.fillMaxWidth())
         }
     }
     }
