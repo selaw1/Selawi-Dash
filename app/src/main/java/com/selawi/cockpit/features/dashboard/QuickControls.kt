@@ -35,17 +35,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.window.Popup
-import androidx.compose.ui.window.PopupProperties
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.shape.CircleShape
-import com.selawi.cockpit.features.settings.AccentPicker
-import com.selawi.cockpit.features.settings.CarPaintPicker
 import com.selawi.cockpit.features.vehicle.CarPaint
 import com.selawi.cockpit.core.design.CockpitCard
 import com.selawi.cockpit.core.design.CockpitColors
@@ -64,56 +58,39 @@ class QuickActions(
     val onAccent: (Color?, Boolean) -> Unit = { _, _ -> },
 )
 
-private enum class Picker { None, Car, Accent }
-
 @Composable
-fun QuickControls(theme: ThemeMode, carPaint: String, accent: Color?, actions: QuickActions, modifier: Modifier = Modifier) {
-    var open by remember { mutableStateOf(Picker.None) }
-    Box(modifier) {
-        CockpitCard(Modifier.fillMaxWidth(), padding = 14.dp) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                VolumeSlider(Modifier.weight(1f))
-                BrightnessSlider(Modifier.weight(1f))
-                Box(Modifier.width(1.dp).height(36.dp).background(CockpitColors.Stroke))
-                ColourButton("Car", CarPaint.swatch(carPaint)) { open = if (open == Picker.Car) Picker.None else Picker.Car }
-                ColourButton("Accent", CockpitColors.Accent) { open = if (open == Picker.Accent) Picker.None else Picker.Accent }
-                ThemeButton(theme, actions.onTheme)
+fun QuickControls(
+    theme: ThemeMode,
+    carPaint: String,
+    open: ColourPanel,
+    onOpen: (ColourPanel) -> Unit,
+    onTheme: (ThemeMode) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    CockpitCard(modifier, padding = 14.dp) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            VolumeSlider(Modifier.weight(1f))
+            BrightnessSlider(Modifier.weight(1f))
+            Box(Modifier.width(1.dp).height(36.dp).background(CockpitColors.Stroke))
+            // Each opens its picker on the back of the music card; tapping again turns it back.
+            ColourButton("Car", CarPaint.swatch(carPaint), active = open == ColourPanel.Car) {
+                onOpen(if (open == ColourPanel.Car) ColourPanel.None else ColourPanel.Car)
             }
-        }
-        // The picker opens above the strip without dimming the screen, so the car and the
-        // dashboard can be seen changing while you choose.
-        if (open != Picker.None) {
-            Popup(
-                alignment = Alignment.BottomEnd,
-                offset = IntOffset(0, with(LocalDensity.current) { -(84.dp).roundToPx() }),
-                onDismissRequest = { open = Picker.None },
-                properties = PopupProperties(focusable = true),
-            ) {
-                CockpitCard(padding = 20.dp) {
-                    Text(
-                        if (open == Picker.Car) "Car colour" else "Accent colour",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = CockpitColors.TextPrimary,
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    if (open == Picker.Car) {
-                        CarPaintPicker(carPaint, actions.onCarPaint, preview = false)
-                    } else {
-                        AccentPicker(accent, actions.onAccent)
-                    }
-                }
+            ColourButton("Accent", CockpitColors.Accent, active = open == ColourPanel.Accent) {
+                onOpen(if (open == ColourPanel.Accent) ColourPanel.None else ColourPanel.Accent)
             }
+            ThemeButton(theme, onTheme)
         }
     }
 }
 
 /** A round swatch with a label: opens that colour's picker. */
 @Composable
-private fun ColourButton(label: String, colour: Color, onClick: () -> Unit) {
+private fun ColourButton(label: String, colour: Color, active: Boolean, onClick: () -> Unit) {
     Row(
         Modifier
             .clip(RoundedCornerShape(14.dp))
-            .background(CockpitColors.SurfaceHigh)
+            .background(if (active) CockpitColors.AccentDim else CockpitColors.SurfaceHigh)
             .clickable(onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,

@@ -30,6 +30,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -133,6 +134,7 @@ fun MediaCard(
                         onClick = controls.playPause,
                     )
                     RoundIconButton(CockpitIcons.SkipNext, "Next track", size = 56.dp * fit, onClick = controls.next)
+                    MuteButton(56.dp * fit)
                 }
             }
         }
@@ -215,4 +217,33 @@ fun appLabel(context: Context, packageName: String?): String? = packageName?.let
         val label = pm.getApplicationInfo(it, 0).loadLabel(pm).toString()
         label.takeIf { name -> name != it }
     }.getOrNull()
+}
+
+/** Mutes and unmutes the music; the icon shows which it is now, and follows the car's own mute. */
+@Composable
+private fun MuteButton(size: androidx.compose.ui.unit.Dp) {
+    val context = LocalContext.current
+    val inspection = androidx.compose.ui.platform.LocalInspectionMode.current
+    val audio = remember { if (inspection) null else context.getSystemService(Context.AUDIO_SERVICE) as? android.media.AudioManager }
+    var muted by remember { mutableStateOf(false) }
+    LaunchedEffect(audio) {
+        while (audio != null) {
+            runCatching { muted = audio.isStreamMute(android.media.AudioManager.STREAM_MUSIC) }
+            delay(800)
+        }
+    }
+    RoundIconButton(
+        if (muted) CockpitIcons.VolumeOff else CockpitIcons.Volume,
+        if (muted) "Unmute" else "Mute",
+        size = size,
+    ) {
+        runCatching {
+            audio?.adjustStreamVolume(
+                android.media.AudioManager.STREAM_MUSIC,
+                android.media.AudioManager.ADJUST_TOGGLE_MUTE,
+                0,
+            )
+        }
+        muted = !muted
+    }
 }

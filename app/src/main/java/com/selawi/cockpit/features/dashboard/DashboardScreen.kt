@@ -125,8 +125,15 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
         ) {
             Header(state, Modifier.fillMaxWidth())
             CallSlot(state.call, onOpenPhone)
-            MediaCard(state.playing, controls, Modifier.fillMaxWidth().weight(1f))
-            QuickControls(state.theme, state.carPaint, state.accent, quick, Modifier.fillMaxWidth())
+            var panel by remember { mutableStateOf(ColourPanel.None) }
+            FlipCard(
+                panel, state.carPaint, state.accent, quick,
+                onClose = { panel = ColourPanel.None },
+                modifier = Modifier.fillMaxWidth().weight(1f),
+            ) {
+                MediaCard(state.playing, controls, Modifier.fillMaxSize())
+            }
+            QuickControls(state.theme, state.carPaint, panel, { panel = it }, quick.onTheme, Modifier.fillMaxWidth())
         }
     }
     }
