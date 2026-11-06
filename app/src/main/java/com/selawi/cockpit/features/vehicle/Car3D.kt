@@ -362,7 +362,8 @@ private fun DrawScope.drawScene(
 }
 
 
-private const val RING = 1.7
+/** Compass radius: just beyond the bumpers (the car is about 2 units long), inside the fade. */
+private const val RING = 1.3
 
 /** A compass on the road around the car while driving: ticks every 10°, N in the accent colour. */
 private fun DrawScope.drawCompass(view: CarScene.View, heading: Float, drive: Float, text: TextMeasurer, style: TextStyle) {
@@ -379,16 +380,16 @@ private fun DrawScope.drawCompass(view: CarScene.View, heading: Float, drive: Fl
         if (first) ring.moveTo(pt.x, pt.y) else ring.lineTo(pt.x, pt.y)
         first = false
     }
-    drawPath(ring, CockpitColors.TextTertiary.copy(alpha = 0.45f * drive), style = Stroke(1.5f * density))
+    drawPath(ring, CockpitColors.TextSecondary.copy(alpha = 0.55f * drive), style = Stroke(1.5f * density))
     for (deg in 0 until 360 step 10) {
         val major = deg % 90 == 0
-        val inner = at(deg.toFloat(), RING - if (major) 0.22 else if (deg % 30 == 0) 0.14 else 0.07) ?: continue
+        val inner = at(deg.toFloat(), RING - if (major) 0.17 else if (deg % 30 == 0) 0.11 else 0.06) ?: continue
         val outer = at(deg.toFloat(), RING) ?: continue
         val colour = if (deg == 0) CockpitColors.Accent else CockpitColors.TextSecondary
         drawLine(colour.copy(alpha = (if (major) 0.9f else 0.5f) * drive), inner, outer, strokeWidth = (if (major) 2.5f else 1.2f) * density, cap = StrokeCap.Round)
     }
     for ((deg, name) in listOf(0 to "N", 90 to "E", 180 to "S", 270 to "W")) {
-        val pt = at(deg.toFloat(), RING + 0.32) ?: continue
+        val pt = at(deg.toFloat(), RING + 0.24) ?: continue
         val colour = if (deg == 0) CockpitColors.Accent else CockpitColors.TextSecondary
         val layout = text.measure(name, style.copy(color = colour.copy(alpha = drive)))
         drawText(layout, topLeft = Offset(pt.x - layout.size.width / 2f, pt.y - layout.size.height / 2f))
