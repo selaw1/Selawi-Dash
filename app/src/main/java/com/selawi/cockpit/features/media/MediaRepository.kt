@@ -77,6 +77,7 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
     private var controller: MediaController? = null
     private val browsers = mutableMapOf<String, MediaBrowser>()
     private val browserControllers = mutableMapOf<String, MediaController>()
+    private val failedAt = mutableMapOf<String, Long>()
     private var broadcastTrack = NowPlaying()
     private var lastArtKey: String? = null
     private var lastArt: ImageBitmap? = null
@@ -115,6 +116,30 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
                 delay(1000)
             }
         }
+        // Players that refused or dropped the link (not running yet, restarting) get another try.
+        scope.launch {
+            while (true) {
+                delay(20_000)
+                connectBrowsers()
+            }
+        }
+    }
+
+    /**
+     * Called when the dashboard comes back to the front. Music apps often start a new player when
+     * you open them and press play, which leaves an old link showing nothing; so every link that is
+     * not playing right now is dropped and made again. The one that is playing is kept.
+     */
+    fun refreshBrowsers() {
+        for ((pkg, browser) in browsers.toMap()) {
+            val playing = browserControllers[pkg]?.playbackState?.state == PlaybackState.STATE_PLAYING
+            if (playing) continue
+            runCatching { browser.disconnect() }
+            browsers.remove(pkg)
+            browserControllers.remove(pkg)
+            failedAt.remove(pkg)
+        }
+        connectBrowsers()
     }
 
     fun playPause() {
@@ -348,13 +373,17 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
             val service = info.serviceInfo ?: continue
             val pkg = service.packageName
             if (pkg == context.packageName || pkg in browsers || !service.exported) continue
+            // An app that refused the link is asked again at most once a minute.
+            if ((failedAt[pkg] ?: 0L) > SystemClock.elapsedRealtime() - 60_000) continue
             val component = ComponentName(pkg, service.name)
             lateinit var browser: MediaBrowser
             browser = MediaBrowser(context, component, object : MediaBrowser.ConnectionCallback() {
                 override fun onConnected() {
+                    failedAt.remove(pkg)
                     runCatching {
                         browserControllers[pkg] = MediaController(context, browser.sessionToken)
                     }
+                    pollSessions()
                 }
 
                 override fun onConnectionSuspended() {
@@ -363,7 +392,10 @@ class MediaRepository(private val context: Context, private val scope: Coroutine
                 }
 
                 override fun onConnectionFailed() {
+                    // Forget it, so it can be tried again later instead of never.
                     browserControllers.remove(pkg)
+                    browsers.remove(pkg)
+                    failedAt[pkg] = SystemClock.elapsedRealtime()
                 }
             }, null)
             browsers[pkg] = browser

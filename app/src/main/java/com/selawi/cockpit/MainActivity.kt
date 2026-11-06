@@ -52,7 +52,7 @@ class MainActivity : ComponentActivity() {
         // Music apps opened from the cockpit may have changed while we were away.
         (application as CockpitApplication).apps.refresh()
         // Music apps started since last time can now accept a direct connection.
-        (application as CockpitApplication).media.connectBrowsers()
+        (application as CockpitApplication).media.refreshBrowsers()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
