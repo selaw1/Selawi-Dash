@@ -109,4 +109,6 @@ jobs:
           cp selawi-dash.apk site-out/
           size=$(awk "BEGIN { printf \"%.1f\", $(stat -c %s selawi-dash.apk) / 1048576 }")
           sed -i "s/__VERSION__/0.3.${GITHUB_RUN_NUMBER}/; s/__SIZE__/${size}/" site-out/index.html
+          # Creates the Pages project the first time; after that this just reports it exists.
+          npx --yes wrangler@3 pages project create "$PROJECT" --production-branch=main || true
           npx --yes wrangler@3 pages deploy site-out --project-name="$PROJECT" --branch=main --commit-dirty=true
