@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.withTransform
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -62,7 +63,6 @@ import kotlin.math.sin
 fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Modifier, paint: String = CarPaint.Pearl) {
     val control = remember { CarControl().also { it.drive = if (state.driving) 1f else 0f } }
     var touched by rememberSaveable { mutableStateOf(false) }
-    val hint by animateFloatAsState(if (touched || state.driving) 0f else 1f, tween(600), label = "hint")
     val latest = rememberUpdatedState(state)
     control.paint = paint
 
@@ -193,14 +193,6 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
                 }
                 .pointerInput(control) { detectTapGestures(onDoubleTap = { control.reset() }) },
         )
-        if (hint > 0.01f) {
-            Text(
-                "Drag to turn the car",
-                style = MaterialTheme.typography.bodyMedium,
-                color = CockpitColors.TextTertiary.copy(alpha = hint),
-                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = Space.s),
-            )
-        }
     }
 }
 
@@ -429,8 +421,18 @@ private fun DrawScope.drawIndicator(control: CarControl, turn: Turn, drive: Floa
 
 /** Fades what is already drawn to nothing at the left, right and bottom edges. */
 private fun DrawScope.fadeEdges() {
-    drawRect(Brush.horizontalGradient(0f to Color.Transparent, 0.1f to Color.Black, 0.9f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
-    drawRect(Brush.verticalGradient(0.82f to Color.Black, 1f to Color.Transparent), blendMode = BlendMode.DstIn)
+    // An oval fade centred on the car: solid in the middle, gone at every edge, so the scene has no
+    // straight line anywhere that could read as a box. The circle is stretched to the area's shape,
+    // and beyond its edge the gradient stays clear, so the corners vanish too.
+    val r = size.width / 2f
+    withTransform({ scale(1f, size.height / size.width, pivot = center) }) {
+        drawRect(
+            Brush.radialGradient(0f to Color.Black, 0.55f to Color.Black, 1f to Color.Transparent, center = center, radius = r),
+            topLeft = Offset(0f, center.y - r),
+            size = Size(size.width, size.width),
+            blendMode = BlendMode.DstIn,
+        )
+    }
 }
 
 /** Fades what is already drawn to nothing at the top edge. */
