@@ -74,6 +74,8 @@ class DashboardState(
     val backdrop: Backdrop = Backdrop.CoverGlow,
     val carPaint: String = CarPaint.Pearl,
     val theme: ThemeMode = ThemeMode.Auto,
+    /** The driver's accent, or null for the default; for the quick accent button. */
+    val accent: Color? = null,
 )
 
 @Composable
@@ -83,8 +85,14 @@ fun DashboardScreen(
     controls: MediaControls,
     onOpenPhone: () -> Unit = {},
     onTheme: (ThemeMode) -> Unit = {},
+    onCarPaint: (String, Boolean) -> Unit = { _, _ -> },
+    onAccent: (Color?, Boolean) -> Unit = { _, _ -> },
 ) {
-    if (compact) CompactDashboard(state, controls, onOpenPhone) else WideDashboard(state, controls, onOpenPhone, onTheme)
+    if (compact) {
+        CompactDashboard(state, controls, onOpenPhone)
+    } else {
+        WideDashboard(state, controls, onOpenPhone, QuickActions(onTheme, onCarPaint, onAccent))
+    }
 }
 
 /** Slides in above the music while a call rings or runs. */
@@ -101,7 +109,7 @@ private fun CallSlot(call: CallInfo, onOpenPhone: () -> Unit) {
 
 /** The car panel on the left; time, music and the forecast on the right. */
 @Composable
-private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit, onTheme: (ThemeMode) -> Unit) {
+private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit, quick: QuickActions) {
     // The cover glow lies behind the whole screen; the car panel fades into it, so there is no seam.
     BoxWithConstraints(Modifier.fillMaxSize()) {
     // The car panel takes about two fifths of the width, never wider than on the Seal's own screen.
@@ -118,7 +126,7 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
             Header(state, Modifier.fillMaxWidth())
             CallSlot(state.call, onOpenPhone)
             MediaCard(state.playing, controls, Modifier.fillMaxWidth().weight(1f))
-            QuickControls(state.theme, onTheme, Modifier.fillMaxWidth())
+            QuickControls(state.theme, state.carPaint, state.accent, quick, Modifier.fillMaxWidth())
         }
     }
     }

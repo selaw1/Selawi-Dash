@@ -40,7 +40,7 @@ private val carColours = listOf(
  * preview of the car. [onChange] runs live while dragging ([final] false) and once on release.
  */
 @Composable
-fun CarPaintPicker(paint: String, onChange: (paint: String, final: Boolean) -> Unit) {
+fun CarPaintPicker(paint: String, onChange: (paint: String, final: Boolean) -> Unit, preview: Boolean = true) {
     Row(horizontalArrangement = Arrangement.spacedBy(Space.xl), verticalAlignment = Alignment.CenterVertically) {
         ColorWheel(
             CarPaint.customColor(paint) ?: Color(0xFF1F4E8C),
@@ -61,8 +61,9 @@ fun CarPaintPicker(paint: String, onChange: (paint: String, final: Boolean) -> U
                 }
             }
         }
-        // Live preview: the same 3D car as on the home screen, parked.
-        Car3D(DrivingState(), modifier = Modifier.weight(1f).height(220.dp), paint = paint)
+        // Live preview: the same 3D car as on the home screen, parked. Left out where the home
+        // screen's own car is already in view.
+        if (preview) Car3D(DrivingState(), modifier = Modifier.weight(1f).height(220.dp), paint = paint)
     }
 }
 

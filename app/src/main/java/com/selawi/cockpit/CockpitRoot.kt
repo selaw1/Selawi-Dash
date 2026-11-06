@@ -118,6 +118,16 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         val savedPaint by app.settings.carPaint.collectAsStateWithLifecycle(initialValue = "Pearl")
         var previewPaint by remember { mutableStateOf<String?>(null) }
         val carPaint = previewPaint ?: savedPaint
+        // Shared by Settings and the home screen's quick buttons: live while dragging, saved on release.
+        val onCarPaint: (String, Boolean) -> Unit = { paint, final ->
+            previewPaint = paint
+            if (final) scope.launch { app.settings.setCarPaint(paint) }
+        }
+        val onAccent: (Color?, Boolean) -> Unit = { color, final ->
+            previewing = true
+            previewAccent = color
+            if (final) scope.launch { app.settings.setAccent(color?.toArgb()) }
+        }
         val fullScreen by app.settings.fullScreen.collectAsStateWithLifecycle(initialValue = true)
         val keepOn by app.settings.keepScreenOn.collectAsStateWithLifecycle(initialValue = false)
         var crash by remember { mutableStateOf(CrashLog.read(activity)) }
@@ -158,10 +168,12 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     when (target) {
                         Destination.Home -> DashboardScreen(
                             compact = compact,
-                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint, theme = themeMode),
+                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint, theme = themeMode, accent = accent),
                             controls = controls,
                             onOpenPhone = app.calls::openPhone,
                         onTheme = { scope.launch { app.settings.setTheme(it) } },
+                        onCarPaint = onCarPaint,
+                        onAccent = onAccent,
                         )
                         Destination.Apps -> Box(Modifier.padding(Space.l)) {
                             LaunchedEffect(Unit) { app.apps.refresh() }
@@ -193,15 +205,8 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                                     crash = null
                                 },
                                 onBackdrop = { scope.launch { app.settings.setBackdrop(it) } },
-                            onCarPaint = { paint, final ->
-                                previewPaint = paint
-                                if (final) scope.launch { app.settings.setCarPaint(paint) }
-                            },
-                                onAccent = { color, final ->
-                                    previewing = true
-                                    previewAccent = color
-                                    if (final) scope.launch { app.settings.setAccent(color?.toArgb()) }
-                                },
+                            onCarPaint = onCarPaint,
+                                onAccent = onAccent,
                             ),
                         ) }
                     }
