@@ -97,11 +97,6 @@ jobs:
             fi
           }
           publish cockpit-latest selawi-dash.apk "Selawi Dash (latest test build)"
-          # Old test releases: the probe and link APKs were signed with the retired key, and the
-          # screenshots release is no longer updated. Deleting a release that is gone is skipped.
-          for tag in probe-latest link-latest screenshots-latest; do
-            gh release delete "$tag" --cleanup-tag --yes || true
-          done
 
       # The download page and the newest APK, uploaded to Cloudflare Pages. Skipped until the
       # CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are added to the repository.
