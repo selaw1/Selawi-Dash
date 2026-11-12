@@ -64,14 +64,6 @@ jobs:
             exit 1
           fi
 
-      - name: Render screenshots
-        run: ./gradlew :app:recordPaparazziDebug --stacktrace
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: screenshots
-          path: app/src/test/snapshots/images/*.png
-
       - uses: actions/upload-artifact@v4
         with:
           name: apk
@@ -86,11 +78,6 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: apk
-
-      - uses: actions/download-artifact@v4
-        with:
-          name: screenshots
-          path: screenshots
 
       # Fixed download links for the car's browser:
       # .../releases/download/cockpit-latest/selawi-dash.apk
@@ -110,8 +97,6 @@ jobs:
             fi
           }
           publish cockpit-latest selawi-dash.apk "Selawi Dash (latest test build)"
-          (cd screenshots && zip -q ../cockpit-screenshots.zip *.png)
-          publish screenshots-latest cockpit-screenshots.zip "Cockpit screenshots (latest build)"
 
       # The download page and the newest APK, uploaded to Cloudflare Pages. Skipped until the
       # CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID secrets are added to the repository.

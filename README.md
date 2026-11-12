@@ -30,7 +30,7 @@ CI also publishes the same APK as the `cockpit-latest` release.
 - Android Studio: open the repository and run the `app` configuration.
 - Terminal: `./gradlew :app:assembleDebug` (output: `app/build/outputs/apk/debug/app-debug.apk`).
 - Screenshots of every screen: `./gradlew :app:recordPaparazziDebug`
-  (output: `app/src/test/snapshots/images/`). CI publishes them as the `screenshots-latest` release.
+  (output: `app/src/test/snapshots/images/`). They run locally; CI does not render them.
 
 Release builds are signed in CI with a private key kept only in the repository's Actions secrets
 (`SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`).
