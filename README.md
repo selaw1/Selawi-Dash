@@ -7,8 +7,8 @@ It is a normal app the driver opens; it does not replace or change BYD's softwar
 
 **Case study:** https://yousef.selawii.com/work/selawi-dash
 
-DiAuto does the heavy lifting (Android Auto, Google Maps on the instrument cluster, voice guidance,
-the phone's music). Selawi Dash is the display on the centre screen.
+A separate Android Auto app on the head unit does the heavy lifting (Google Maps on the instrument
+cluster, voice guidance, the phone's music). Selawi Dash is the display on the centre screen.
 
 ## What it shows
 

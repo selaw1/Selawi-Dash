@@ -1,7 +1,7 @@
 # Working on Selawi Dash
 
-Selawi Dash is a display-only dashboard for the BYD Seal 05 DM-i head unit. DiAuto handles
-Android Auto, maps and the phone's music; this app shows the car, music, weather and calls on the
+Selawi Dash is a display-only dashboard for the BYD Seal 05 DM-i head unit. A separate Android
+Auto app on the head unit handles maps and the phone's music; this app shows the car, music, weather and calls on the
 centre screen. Read `README.md` and `docs/CAR.md` before changing anything.
 
 ## The car

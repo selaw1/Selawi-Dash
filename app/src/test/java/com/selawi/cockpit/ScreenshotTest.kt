@@ -230,8 +230,8 @@ class ScreenshotTest {
 
     private val allApps by lazy {
         listOf(
-        "Spotify" to 0xFF1DB954, "SoundCloud" to 0xFFFF5500, "DiAuto" to 0xFF2D6BFF,
-        "YouTube" to 0xFFFF0033, "Chrome" to 0xFF4285F4, "DiPlay" to 0xFF34C759,
+        "Spotify" to 0xFF1DB954, "SoundCloud" to 0xFFFF5500, "Maps" to 0xFF2D6BFF,
+        "YouTube" to 0xFFFF0033, "Chrome" to 0xFF4285F4, "Music" to 0xFF34C759,
         "Bluetooth Phone" to 0xFF19C3B4, "Album" to 0xFF3DD5C8, "DVR" to 0xFF30C6E8,
         "App Store" to 0xFFFF9F1C, "Bilibili" to 0xFFFB7299, "CarLife" to 0xFF3B6CFF,
         ).map { (name, color) -> AppInfo(name, ComponentName("demo.$name", "demo.Main"), icon(name, color.toInt())) }
