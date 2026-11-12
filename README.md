@@ -7,9 +7,6 @@ It is a normal app the driver opens; it does not replace or change BYD's softwar
 
 **Case study:** https://yousef.selawii.com/work/selawi-dash
 
-A separate Android Auto app on the head unit does the heavy lifting (Google Maps on the instrument
-cluster, voice guidance, the phone's music). Selawi Dash is the display on the centre screen.
-
 ## What it shows
 
 - **Car panel:** driving status and heading, speed from GPS, a 3D car that turns under your finger
