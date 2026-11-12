@@ -3,6 +3,8 @@
 A full-screen dashboard for the BYD Seal 05 DM-i head unit, written in Kotlin with Jetpack Compose.
 It is a normal app the driver opens; it does not replace or change BYD's software.
 
+**Download:** https://selawi-dash.pages.dev
+
 DiAuto does the heavy lifting (Android Auto, Google Maps on the instrument cluster, voice guidance,
 the phone's music). Selawi Dash is the display on the centre screen.
 
@@ -20,8 +22,8 @@ the phone's music). Selawi Dash is the display on the centre screen.
 
 ## Install
 
-Download the APK from the Selawi Dash download page in the car's browser and open it.
-CI also publishes it as the `cockpit-latest` release.
+Open **https://selawi-dash.pages.dev** in the car's browser, tap **Download APK** and open the file.
+CI also publishes the same APK as the `cockpit-latest` release.
 
 ## Build
 
