@@ -7,14 +7,6 @@ It is a normal app the driver opens; it does not replace or change BYD's softwar
 
 **Case study:** https://yousef.selawii.com/work/selawi-dash
 
-<p>
-  <img src="docs/media/dashboard.png" alt="Selawi Dash home screen, parked" width="49%">
-  <img src="docs/media/driving.png" alt="Selawi Dash while driving" width="49%">
-</p>
-<p>
-  <img src="docs/media/colours.png" alt="Colour picker on the back of the music card" width="49%">
-</p>
-
 DiAuto does the heavy lifting (Android Auto, Google Maps on the instrument cluster, voice guidance,
 the phone's music). Selawi Dash is the display on the centre screen.
 
