@@ -82,6 +82,7 @@ enum class Destination(val label: String, val icon: ImageVector) {
 @Composable
 fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
     val weather by app.weather.weather.collectAsStateWithLifecycle()
+    val needsLocation by app.weather.needsLocation.collectAsStateWithLifecycle()
     val themeMode by app.settings.theme.collectAsStateWithLifecycle(initialValue = ThemeMode.Auto)
     var hour by remember { mutableIntStateOf(LocalTime.now().hour) }
     LaunchedEffect(Unit) {
@@ -168,7 +169,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     when (target) {
                         Destination.Home -> DashboardScreen(
                             compact = compact,
-                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint, theme = themeMode, accent = accent),
+                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint, theme = themeMode, accent = accent, needsLocation = needsLocation),
                             controls = controls,
                             onOpenPhone = app.calls::openPhone,
                         onTheme = { scope.launch { app.settings.setTheme(it) } },

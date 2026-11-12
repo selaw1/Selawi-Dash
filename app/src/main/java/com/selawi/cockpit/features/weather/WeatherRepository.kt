@@ -33,10 +33,18 @@ data class Weather(
     val sunset: LocalTime? = null,
 )
 
-/** Weather from Open-Meteo: free, no key, no Google services. Refreshes every 20 minutes. */
+/**
+ * Weather from Open-Meteo for the car's position: free, no key, no Google services. Refreshes
+ * every 20 minutes. Without a position there is no forecast; [needsLocation] says so instead of
+ * showing the weather for some other place.
+ */
 class WeatherRepository(private val context: Context, private val scope: CoroutineScope) {
     private val _weather = MutableStateFlow<Weather?>(null)
     val weather: StateFlow<Weather?> = _weather
+
+    private val _needsLocation = MutableStateFlow(false)
+    /** True while there is no forecast because the car's position is not known yet. */
+    val needsLocation: StateFlow<Boolean> = _needsLocation
 
     init {
         scope.launch {
@@ -47,16 +55,22 @@ class WeatherRepository(private val context: Context, private val scope: Corouti
         }
     }
 
-    /** Called again when location permission arrives, so the forecast moves from Amman to the car. */
+    /** Called again when location permission arrives, so the forecast loads straight away. */
     fun refreshNow() {
         scope.launch { refresh() }
     }
 
     private suspend fun refresh() {
         val location = context.lastKnownLocation()
-        val lat = location?.latitude ?: AMMAN_LAT
-        val lon = location?.longitude ?: AMMAN_LON
-        val place = if (location != null) "Here" else "Amman"
+        if (location == null) {
+            // No position yet (no permission or no GPS fix): ask for it rather than guess a place.
+            // A forecast already shown stays, since it was for where the car really was.
+            if (_weather.value == null) _needsLocation.value = true
+            return
+        }
+        val lat = location.latitude
+        val lon = location.longitude
+        val place = "Here"
         val result = withContext(Dispatchers.IO) {
             runCatching {
                 val url = "https://api.open-meteo.com/v1/forecast?latitude=$lat&longitude=$lon" +
@@ -67,7 +81,10 @@ class WeatherRepository(private val context: Context, private val scope: Corouti
             }.getOrNull()
         }
         // Keep the last good reading when the car is offline.
-        if (result != null) _weather.value = result
+        if (result != null) {
+            _weather.value = result
+            _needsLocation.value = false
+        }
     }
 
     private fun get(url: String): String {
@@ -146,10 +163,5 @@ class WeatherRepository(private val context: Context, private val scope: Corouti
         85, 86 -> "Snow showers"
         in 95..99 -> "Thunderstorm"
         else -> "—"
-    }
-
-    private companion object {
-        const val AMMAN_LAT = 31.9539
-        const val AMMAN_LON = 35.9106
     }
 }

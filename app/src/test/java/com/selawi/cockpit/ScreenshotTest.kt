@@ -170,7 +170,7 @@ class ScreenshotTest {
             compact = compact,
             state = DashboardState(
                 weather = Weather(
-                    27, 31, 18, if (sky == Sky.Clear) "Mostly clear" else sky.name, isDay = isDay, place = "Amman", sky = sky,
+                    27, 31, 18, if (sky == Sky.Clear) "Mostly clear" else sky.name, isDay = isDay, place = "Here", sky = sky,
                     hours = listOf(
                         HourForecast(LocalTime.of(14, 0), 28, Sky.Clear, true),
                         HourForecast(LocalTime.of(15, 0), 28, Sky.PartlyCloudy, true),
