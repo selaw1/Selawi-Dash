@@ -76,6 +76,8 @@ class DashboardState(
     val theme: ThemeMode = ThemeMode.Auto,
     /** The driver's accent, or null for the default; for the quick accent button. */
     val accent: Color? = null,
+    /** No forecast because the car's position is unknown; the header asks for location. */
+    val needsLocation: Boolean = false,
 )
 
 @Composable
@@ -277,6 +279,8 @@ private fun Header(state: DashboardState, modifier: Modifier) {
                 if (showCondition) {
                     Text(weather.condition, style = MaterialTheme.typography.bodyMedium, color = CockpitColors.TextSecondary, maxLines = 1)
                 }
+            } else if (state.needsLocation) {
+                Text("Location needed", style = MaterialTheme.typography.bodyMedium, color = CockpitColors.TextSecondary, maxLines = 1)
             }
         }
     }

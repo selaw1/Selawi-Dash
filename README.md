@@ -5,6 +5,8 @@ It is a normal app the driver opens; it does not replace or change BYD's softwar
 
 **Download:** https://selawi-dash.pages.dev
 
+**Case study:** https://yousef.selawii.com/work/selawi-dash
+
 DiAuto does the heavy lifting (Android Auto, Google Maps on the instrument cluster, voice guidance,
 the phone's music). Selawi Dash is the display on the centre screen.
 
@@ -25,6 +27,8 @@ the phone's music). Selawi Dash is the display on the centre screen.
 Open **https://selawi-dash.pages.dev** in the car's browser, tap **Download APK** and open the file.
 CI also publishes the same APK as the `cockpit-latest` release.
 
+This is a beta. Builds from before 12 November 2026 were signed with an old test key, so uninstall them before installing the current build. Android will ask you to allow installs from the browser.
+
 ## Build
 
 - Android Studio: open the repository and run the `app` configuration.
@@ -36,6 +40,10 @@ Release builds are signed in CI with a private key kept only in the repository's
 (`SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`).
 The key is never committed. Local release builds without it are unsigned; debug builds use the
 Android SDK's debug key.
+
+## How it was built
+
+Built with Claude Code. I plan each project in a long conversation with an AI assistant, which writes up what we settle as a brief. Claude Code then builds from that brief while I test it on real hardware, change scope and steer. The rules in CLAUDE.md and the notes in docs/ are the working record. More about the method: https://yousef.selawii.com/notes/building-with-agents
 
 ## Code layout
 
@@ -62,3 +70,7 @@ Car facts the code relies on are in [docs/CAR.md](docs/CAR.md).
   model and textures by Eric Chadwick, CC BY 4.0 (logo parts hidden).
 - Fonts: Space Grotesk and Inter, SIL Open Font License 1.1 (`app/src/main/assets/licenses`).
 - Weather: Open-Meteo. Covers: iTunes Search API.
+
+## License
+
+MIT for the code. The 3D car model and the fonts keep their own licenses, see Credits.
