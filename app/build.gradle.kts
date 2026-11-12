@@ -24,25 +24,31 @@ android {
     }
 
     signingConfigs {
-        // Fixed test key, so every build installs over the previous one and keeps the driver's
-        // settings. A private key replaces it before any public release.
-        getByName("debug") {
-            storeFile = file("../keystore/debug.jks")
-            storePassword = "android"
-            keyAlias = "probe"
-            keyPassword = "android"
+        // The release key is never stored in the repository. CI writes it from repository secrets
+        // and passes its location and passwords in these environment variables.
+        create("release") {
+            val keystore = System.getenv("SIGNING_KEYSTORE_PATH")
+            if (keystore != null) {
+                storeFile = file(keystore)
+                storePassword = System.getenv("SIGNING_STORE_PASSWORD")
+                keyAlias = System.getenv("SIGNING_KEY_ALIAS")
+                keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
+            }
         }
     }
 
     buildTypes {
-        debug { signingConfig = signingConfigs.getByName("debug") }
+        // Debug builds use the Android SDK's own debug key on each machine.
         // What drivers install: unused code and resources removed, so it is small enough for the
-        // download page and runs faster. Same key, so it installs over earlier builds.
+        // download page and runs faster. Signed with the private release key when CI provides it;
+        // a local release build without the key is left unsigned.
         release {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-            signingConfig = signingConfigs.getByName("debug")
+            if (System.getenv("SIGNING_KEYSTORE_PATH") != null) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

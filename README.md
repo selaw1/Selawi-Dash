@@ -20,11 +20,8 @@ the phone's music). Selawi Dash is the display on the centre screen.
 
 ## Install
 
-Log in to GitHub in the car's browser (the repository is private), then open:
-
-https://github.com/selaw1/Selawi-Dash/releases/download/cockpit-latest/selawi-dash.apk
-
-Every push to the branch rebuilds the app and replaces that file.
+Download the APK from the Selawi Dash download page in the car's browser and open it.
+CI also publishes it as the `cockpit-latest` release.
 
 ## Build
 
@@ -33,8 +30,10 @@ Every push to the branch rebuilds the app and replaces that file.
 - Screenshots of every screen: `./gradlew :app:recordPaparazziDebug`
   (output: `app/src/test/snapshots/images/`). CI publishes them as the `screenshots-latest` release.
 
-Builds are signed with the test key in `keystore/`, so new builds install over old ones.
-Use a private key before sharing the app with anyone.
+Release builds are signed in CI with a private key kept only in the repository's Actions secrets
+(`SIGNING_KEYSTORE_BASE64`, `SIGNING_STORE_PASSWORD`, `SIGNING_KEY_ALIAS`, `SIGNING_KEY_PASSWORD`).
+The key is never committed. Local release builds without it are unsigned; debug builds use the
+Android SDK's debug key.
 
 ## Code layout
 

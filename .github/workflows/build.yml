@@ -31,11 +31,31 @@ jobs:
 
       - uses: gradle/actions/setup-gradle@v4
 
+      # The private release key lives only in repository secrets. It is written to the runner's
+      # temporary folder for this build and never committed.
+      - name: Prepare the release key
+        env:
+          SIGNING_KEYSTORE_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$SIGNING_KEYSTORE_BASE64" ]; then
+            echo "::error::The SIGNING_KEYSTORE_BASE64 secret is not set, so the APK cannot be signed."
+            exit 1
+          fi
+          echo "$SIGNING_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          echo "SIGNING_KEYSTORE_PATH=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+
       - name: Build Selawi Dash (release)
+        env:
+          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
           ./gradlew :app:assembleRelease --stacktrace
           cp app/build/outputs/apk/release/app-release.apk selawi-dash.apk
+          # Stop if the APK is not signed with the release key, rather than publishing a bad file.
+          apksigner="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
+          "$apksigner" verify --print-certs selawi-dash.apk | grep -i "certificate DN"
           size=$(stat -c %s selawi-dash.apk)
           echo "APK size: $size bytes ($((size / 1048576)) MB)"
           # Cloudflare Pages serves files up to 25 MiB.
