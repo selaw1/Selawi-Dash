@@ -167,7 +167,7 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
             Spacer(Modifier.height(Space.s))
             Text(
                 "Where speed, altitude and position come from. GPS is the phone's or car's own. Online is the plane's " +
-                    "own position, which every airliner broadcasts, read from adsb.lol or airplanes.live: it works where " +
+                    "own position, which every airliner broadcasts, read from adsb.lol or adsb.fi: it works where " +
                     "GPS can't see the sky, but needs internet on board and your flight number, and runs a few seconds " +
                     "behind. Automatic uses GPS, and online data while GPS has no fix.",
                 style = MaterialTheme.typography.bodyMedium,
@@ -238,7 +238,7 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
             Text(
                 "Default 3D car: \"Car Concept\" from the Khronos glTF Sample Assets, © 2024 Darmstadt Graphics Group GmbH, " +
                     "model and textures by Eric Chadwick, licensed CC BY 4.0. Logos removed. " +
-                    "Weather by Open-Meteo. Online flight data from adsb.lol (ODbL) and airplanes.live. Fonts: Space Grotesk and Inter, SIL Open Font License 1.1.",
+                    "Weather by Open-Meteo. Online flight data from adsb.lol (ODbL) and adsb.fi. Fonts: Space Grotesk and Inter, SIL Open Font License 1.1.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CockpitColors.TextSecondary,
             )

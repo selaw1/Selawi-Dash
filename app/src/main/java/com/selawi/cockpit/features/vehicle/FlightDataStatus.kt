@@ -58,11 +58,15 @@ object FlightDataStatus {
                 OnlineState.NoInternet -> "Online: no internet. Connect to the plane's Wi-Fi and buy internet; messaging-only packages usually block it.".also { problem = true }
                 OnlineState.NoInternetYet -> "Online: the Wi-Fi has no internet access yet. Log in or buy internet on the Wi-Fi page.".also { problem = true }
                 OnlineState.Searching -> "Online: looking up $cs…"
-                OnlineState.NotFound -> "Online: $cs isn't in the online data right now. Check the number; over the sea there are often no receivers."
+                OnlineState.NotFound -> "Online: no service has $cs right now. Check the number; over the sea there are often no receivers."
                 OnlineState.Stale -> "Online: $cs was last seen ${(online.fix?.ageSeconds ?: 0f).roundToInt()} s ago. No receivers are near the plane right now (often over the sea); it continues when they are."
-                OnlineState.Unreachable -> "Online: couldn't reach adsb.lol or airplanes.live. The internet may be too slow or blocked."
+                OnlineState.Unreachable -> "Online: no service answered."
                 OnlineState.Live -> "Online: $cs found."
             }
+        }
+        // Each service's own answer, so the reason is never a guess.
+        if (source != FlightSource.Gps && online.state in setOf(OnlineState.NotFound, OnlineState.Stale, OnlineState.Unreachable)) {
+            lines += online.results.map { "· $it" }
         }
         return FlightDataExplanation(if (problem) FlightDataLevel.Problem else FlightDataLevel.Waiting, "No position yet", lines)
     }

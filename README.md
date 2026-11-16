@@ -20,7 +20,7 @@ It is a normal app the driver opens; it does not replace or change BYD's softwar
   and the flight's distance, time in the air, highest altitude and top speed. Runway or sky comes
   from how fast the GPS altitude changes, so it works at airports of any height.
 - **Flight data (Settings):** Automatic, GPS only or Online only. Online reads the plane's own
-  broadcast position (ADS-B) from adsb.lol or airplanes.live by flight number, for when the phone's
+  broadcast position (ADS-B) from adsb.lol or adsb.fi by flight number, for when the phone's
   GPS can't see the sky, such as behind dimmable windows. It needs internet on board. Settings
   shows what is in use and, if there is no position, why and what to do. GPS works in airplane mode; a window seat
   helps.
@@ -79,7 +79,7 @@ Car facts the code relies on are in [docs/CAR.md](docs/CAR.md). The plane model 
 - Plane: made for this project by `tools/plane/make_plane.py`, MIT like the code.
 - Fonts: Space Grotesk and Inter, SIL Open Font License 1.1 (`app/src/main/assets/licenses`).
 - Weather: Open-Meteo. Covers: iTunes Search API.
-- Online flight data: adsb.lol (Open Database License) and airplanes.live.
+- Online flight data: adsb.lol (Open Database License) and adsb.fi.
 
 ## License
 

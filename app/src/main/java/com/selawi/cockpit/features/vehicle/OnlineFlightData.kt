@@ -22,7 +22,7 @@ import java.net.URL
  * A plane's position from the internet, for when the phone's GPS cannot see the sky (in a cabin,
  * behind dimmable windows). Every airliner broadcasts its own GPS position, altitude, speed and
  * heading by radio (ADS-B); volunteers' receivers collect it, and adsb.lol (open data, ODbL) and
- * airplanes.live share it free. The flight is found by its callsign, made from the flight number
+ * adsb.fi share it free. The flight is found by its callsign, made from the flight number
  * the user types (RJ183 → RJA183). Needs internet on board; the data is a few seconds behind the
  * plane and can pause where there are no receivers, often over the sea.
  */
@@ -62,7 +62,15 @@ data class OnlineStatus(
     val fix: OnlineFix? = null,
     /** SystemClock.elapsedRealtime() of the last answer. */
     val updatedAt: Long = 0,
+    /** What each service answered on the last try, in plain words, for the settings. */
+    val results: List<String> = emptyList(),
 )
+
+/** One service's answer: the body, or why there is none, in plain words. */
+private sealed interface Answer {
+    data class Body(val text: String) : Answer
+    data class Failed(val reason: String) : Answer
+}
 
 /** Flight number to the callsign planes broadcast: RJ183 → RJA183. ICAO callsigns pass through. */
 object FlightNumbers {
@@ -170,25 +178,41 @@ class OnlineFlightData(
             Internet.Yes -> Unit
         }
         if (_status.value.state != OnlineState.Live) _status.value = _status.value.copy(state = OnlineState.Searching, callsign = callsign)
+        // Ask each service in turn and keep what each one answered, so a failure is never vague.
+        val results = mutableListOf<String>()
         var reached = false
+        var stale: OnlineFix? = null
+        var staleFrom: String? = null
         for ((name, base) in PROVIDERS) {
-            val body = withContext(Dispatchers.IO) { runCatching { get(base + callsign) }.getOrNull() } ?: continue
-            reached = true
-            val fix = runCatching { AdsbParser.parse(body, callsign) }.getOrNull()
-            val now = SystemClock.elapsedRealtime()
-            if (fix == null) {
-                _status.value = OnlineStatus(OnlineState.NotFound, callsign, name, null, now)
-                continue
+            when (val answer = withContext(Dispatchers.IO) { fetch(base + callsign) }) {
+                is Answer.Failed -> results += "$name: ${answer.reason}"
+                is Answer.Body -> {
+                    reached = true
+                    val fix = runCatching { AdsbParser.parse(answer.text, callsign) }
+                    val now = SystemClock.elapsedRealtime()
+                    when {
+                        fix.isFailure -> results += "$name: answered, but not with flight data."
+                        fix.getOrNull() == null -> results += "$name: $callsign isn't in its data right now."
+                        fix.getOrNull()!!.ageSeconds > 60 -> {
+                            results += "$name: last saw $callsign ${fix.getOrNull()!!.ageSeconds.toInt()} s ago."
+                            stale = fix.getOrNull(); staleFrom = name
+                        }
+                        else -> {
+                            val found = fix.getOrNull()!!
+                            _status.value = OnlineStatus(OnlineState.Live, callsign, name, found, now, results + "$name: found $callsign.")
+                            driving.onlineFix(found)
+                            return
+                        }
+                    }
+                }
             }
-            if (fix.ageSeconds > 60) {
-                _status.value = OnlineStatus(OnlineState.Stale, callsign, name, fix, now)
-                return
-            }
-            _status.value = OnlineStatus(OnlineState.Live, callsign, name, fix, now)
-            driving.onlineFix(fix)
-            return
         }
-        if (!reached) _status.value = OnlineStatus(OnlineState.Unreachable, callsign)
+        val now = SystemClock.elapsedRealtime()
+        _status.value = when {
+            stale != null -> OnlineStatus(OnlineState.Stale, callsign, staleFrom, stale, now, results)
+            reached -> OnlineStatus(OnlineState.NotFound, callsign, null, null, now, results)
+            else -> OnlineStatus(OnlineState.Unreachable, callsign, null, null, now, results)
+        }
     }
 
     private enum class Internet { None, NotYet, Yes }
@@ -200,24 +224,40 @@ class OnlineFlightData(
         return if (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)) Internet.Yes else Internet.NotYet
     }
 
-    private fun get(url: String): String {
+    /** One request, turned into the body or a plain reason why not. */
+    private fun fetch(url: String): Answer = try {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 6000
         c.readTimeout = 6000
         c.setRequestProperty("User-Agent", "SelawiDash (open-source dashboard app)")
-        return try {
-            if (c.responseCode != 200) error("HTTP ${c.responseCode}")
-            c.inputStream.bufferedReader().use { it.readText() }
+        c.setRequestProperty("Accept", "application/json")
+        try {
+            when (val code = c.responseCode) {
+                200 -> Answer.Body(c.inputStream.bufferedReader().use { it.readText() })
+                401, 403 -> Answer.Failed("refused the app (HTTP $code).")
+                404 -> Answer.Failed("doesn't have this address any more (HTTP 404).")
+                429 -> Answer.Failed("too many requests; it asks to slow down (HTTP 429).")
+                in 500..599 -> Answer.Failed("its server has a problem (HTTP $code).")
+                else -> Answer.Failed("answered HTTP $code.")
+            }
         } finally {
             c.disconnect()
         }
+    } catch (e: java.net.SocketTimeoutException) {
+        Answer.Failed("no answer within 6 seconds.")
+    } catch (e: java.net.UnknownHostException) {
+        Answer.Failed("couldn't look up its address; the internet may not be working.")
+    } catch (e: javax.net.ssl.SSLException) {
+        Answer.Failed("the secure connection failed; the Wi-Fi may be blocking it.")
+    } catch (e: java.io.IOException) {
+        Answer.Failed("connection failed (${e.javaClass.simpleName}).")
     }
 
     private companion object {
-        /** adsb.lol first (open data, ODbL); airplanes.live if it cannot be reached or has no position. */
+        /** adsb.lol first (open data, ODbL), then adsb.fi; both free, no key. */
         val PROVIDERS = listOf(
             "adsb.lol" to "https://api.adsb.lol/v2/callsign/",
-            "airplanes.live" to "https://api.airplanes.live/v2/callsign/",
+            "adsb.fi" to "https://opendata.adsb.fi/api/v2/callsign/",
         )
     }
 }

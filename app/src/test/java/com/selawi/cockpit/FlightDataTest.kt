@@ -59,6 +59,13 @@ class FlightDataTest {
         assertEquals("Using GPS", gps.headline)
         assertEquals("9 of 14 satellites in use.", gps.lines[0])
 
+        val notFound = FlightDataStatus.describe(
+            FlightSource.Online, noSky,
+            OnlineStatus(OnlineState.NotFound, "RJA271", results = listOf("adsb.lol: RJA271 isn't in its data right now.", "adsb.fi: refused the app (HTTP 403).")),
+            "RJ271", 0,
+        )
+        assertEquals("· adsb.fi: refused the app (HTTP 403).", notFound.lines.last())
+
         val number = FlightDataStatus.describe(FlightSource.Online, noSky, OnlineStatus(OnlineState.NoFlightNumber), "", 0)
         assertTrue(number.lines.single().startsWith("Online: enter your flight number"))
     }
