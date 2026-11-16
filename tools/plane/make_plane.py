@@ -1,5 +1,5 @@
 """
-Builds the airliner shown in flight mode: app/src/main/assets/plane/plane.glb.
+Builds the jet shown in flight mode: app/src/main/assets/plane/plane.glb.
 
 The model is made here from simple shapes (no outside asset), so it is covered by the project's
 MIT license. Run it again after changing a dimension:
@@ -20,10 +20,13 @@ import numpy as np
 
 OUT = os.path.join(os.path.dirname(__file__), "..", "..", "app", "src", "main", "assets", "plane", "plane.glb")
 
-R = 2.0          # fuselage radius
-NOSE = 19.0      # nose tip z
-TAIL = -19.0     # tail end z
-GROUND = -4.3    # wheel bottoms
+# A sleek business jet: slim body, long pointed nose, swept wings, engines at the back, T-tail.
+R = 1.35         # fuselage radius
+NOSE = 16.0      # nose tip z
+TAIL = -16.0     # tail end z
+CABIN_FRONT = 8.5
+CABIN_BACK = -5.5
+GROUND = -2.95   # wheel bottoms
 
 MATERIALS = {
     # name: (base colour, metallic, roughness, emissive)
@@ -85,21 +88,21 @@ def unit(v):
 
 
 def fuselage_profile(z):
-    """Radius and centre height of the fuselage at z: rounded nose, straight cabin, upswept tail."""
-    if z >= 12.0:
-        t = (z - 12.0) / (NOSE - 12.0)
-        r = R * math.sqrt(max(0.0, 1.0 - t ** 2.2))
-        return r, -0.35 * t * R
-    if z >= -8.0:
+    """Radius and centre height of the fuselage at z: long pointed nose, straight cabin, upswept tail."""
+    if z >= CABIN_FRONT:
+        t = (z - CABIN_FRONT) / (NOSE - CABIN_FRONT)
+        r = R * max(0.0, 1.0 - t ** 1.7) ** 0.6
+        return r, -0.3 * t * R
+    if z >= CABIN_BACK:
         return R, 0.0
-    t = (-8.0 - z) / (-8.0 - TAIL)
-    r = R * (1.0 - 0.84 * t ** 1.25)
+    t = (CABIN_BACK - z) / (CABIN_BACK - TAIL)
+    r = R * (1.0 - 0.86 * t ** 1.2)
     # The top line stays level and the underside sweeps up towards the tail.
     return r, R - r
 
 
 def fuselage(m):
-    zs = list(np.linspace(TAIL, -8.0, 14)) + list(np.linspace(-7.0, 11.0, 10)) + list(np.linspace(12.0, NOSE, 16))
+    zs = list(np.linspace(TAIL, CABIN_BACK, 16))[:-1] + list(np.linspace(CABIN_BACK, CABIN_FRONT, 24))[:-1] + list(np.linspace(CABIN_FRONT, NOSE, 20))
     seg = 36
     rings = []
     for z in zs:
@@ -131,9 +134,15 @@ def fuselage(m):
             mat = "Body"
             if side > 118:
                 mat = "Belly"
-            if -9.5 < z < 10.5 and 61 < side < 71:
+            # A stripe in the livery colour along each side, sweeping up towards the tail.
+            rise = max(0.0, -z - 4.0) * 3.2
+            if -14.5 < z < 11.0 and 80 - rise < side < 89 - rise:
+                mat = "Livery"
+            # A row of separate windows: every other band of the cabin.
+            if -3.4 < z < 6.6 and 62 < side < 72 and i % 2 == 0:
                 mat = "Window"
-            if 14.0 < z < 15.6 and 48 < side < 82:
+            # Wraparound windscreen.
+            if 10.6 < z < 12.4 and 44 < side < 84:
                 mat = "Glass"
             a, b = grid[i, j], grid[i, (j + 1) % nseg]
             c, d = grid[i + 1, (j + 1) % nseg], grid[i + 1, j]
@@ -204,15 +213,14 @@ def disc(m, mat, z, r, centre_xy, facing, seg=24):
         m.tri(mat, c, pts[j], pts[(j + 1) % seg], np.array([0, 0, facing]))
 
 
-def engine(m, x, y, z_front):
-    length = 5.0
-    prof = [(z_front, 1.05), (z_front - 0.15, 1.22), (z_front - 0.8, 1.3), (z_front - 3.0, 1.22), (z_front - length, 0.82)]
+def engine(m, x, y, z_front, k=1.0):
+    """A nacelle with an intake lip, a dark fan face with a spinner and an exhaust cone; k scales it."""
+    length = 5.0 * k
+    prof = [(z_front, 1.05 * k), (z_front - 0.15 * k, 1.22 * k), (z_front - 0.8 * k, 1.3 * k), (z_front - 3.0 * k, 1.22 * k), (z_front - length, 0.82 * k)]
     lathe(m, lambda i: "Metal" if i == 0 else "Engine", prof, (x, y))
-    disc(m, "Dark", z_front - 0.35, 1.05, (x, y), 1.0)
-    # Spinner in the intake.
-    lathe(m, lambda i: "Metal", [(z_front - 0.0, 0.0), (z_front - 0.35, 0.32), (z_front - 0.5, 0.36)], (x, y), 16)
-    # Exhaust cone.
-    lathe(m, lambda i: "Dark", [(z_front - length, 0.78), (z_front - length - 0.9, 0.2)], (x, y), 16)
+    disc(m, "Dark", z_front - 0.35 * k, 1.05 * k, (x, y), 1.0)
+    lathe(m, lambda i: "Metal", [(z_front, 0.0), (z_front - 0.35 * k, 0.32 * k), (z_front - 0.5 * k, 0.36 * k)], (x, y), 16)
+    lathe(m, lambda i: "Dark", [(z_front - length, 0.78 * k), (z_front - length - 0.9 * k, 0.2 * k)], (x, y), 16)
 
 
 def box(m, mat, lo, hi):
@@ -262,46 +270,43 @@ def light(m, mat, p, r=0.28):
 def build():
     body = Mesh()
     fuselage(body)
-    # Main wings: low on the body, swept back, with a little dihedral.
-    wing_root_y = -1.15
+    # Wings: low on the body, strongly swept, with raked winglets in the livery colour.
+    wing_root_y = -0.75
     for side in (1, -1):
-        st = wing(body, "Body", [side * 1.2, wing_root_y, 3.2], 8.0, 2.0, 16.6, [side, 0, 0], [0, 1, 0], 27, 5.5, 0.1)
+        st = wing(body, "Body", [side * 0.95, wing_root_y, 1.8], 5.4, 1.3, 9.8, [side, 0, 0], [0, 1, 0], 35, 4, 0.1)
         tip_le = st[1][0]
-        # Winglet.
-        wing(body, "Livery", tip_le + np.array([0, 0.05, 0.0]), 2.0, 0.9, 2.2, [side * 0.25, 1, 0], [side, -0.25, 0], 35, 0, 0.08, SYMMETRIC)
-        # Navigation light just behind the wingtip: red on the left (+x), green on the right.
-        light(body, "NavRed" if side > 0 else "NavGreen", tip_le + np.array([side * 0.1, 0.1, -1.0]))
-        light(body, "Strobe", tip_le + np.array([side * 0.1, 0.1, -1.9]), 0.2)
-        # Engine under the wing on a pylon.
-        ex = side * 6.4
-        le_at = 3.2 - (abs(ex) - 1.2) * math.tan(math.radians(27))
-        ey = wing_root_y + (abs(ex) - 1.2) * math.tan(math.radians(5.5)) - 1.75
-        engine(body, ex, ey, le_at + 2.4)
-        box(body, "Body", [ex - 0.18, ey + 0.9, le_at - 3.2], [ex + 0.18, ey + 2.0, le_at + 1.4])
-        # Tailplane.
-        r_t, cy_t = fuselage_profile(-15.0)
-        wing(body, "Body", [side * r_t * 0.7, cy_t + 0.25, -13.4], 4.4, 1.7, 6.3, [side, 0, 0], [0, 1, 0], 33, 7, 0.09, SYMMETRIC)
-    # Tail fin in the livery colour.
-    r_f, cy_f = fuselage_profile(-12.5)
-    wing(body, "Livery", [0, cy_f + r_f * 0.9, -10.6], 7.0, 2.7, 6.5, [0, 1, 0], [1, 0, 0], 40, 0, 0.1, SYMMETRIC)
-    light(body, "Strobe", [0, fuselage_profile(TAIL)[1], TAIL - 0.15], 0.22)
-    light(body, "Beacon", [0, R * 1.04 + 0.05, 1.0], 0.3)
-    light(body, "Beacon", [0, -R * 1.04 - 0.05, -2.0], 0.3)
+        wing(body, "Livery", tip_le + np.array([0, 0.04, 0.0]), 1.3, 0.45, 2.0, [side * 0.38, 1, 0], [side, -0.38, 0], 52, 0, 0.08, SYMMETRIC)
+        # Navigation light at the wingtip: red on the left (+x), green on the right.
+        light(body, "NavRed" if side > 0 else "NavGreen", tip_le + np.array([side * 0.08, 0.06, -0.6]), 0.2)
+        light(body, "Strobe", tip_le + np.array([side * 0.08, 0.06, -1.15]), 0.15)
+        # Engines mounted on the rear body, each on a short stub pylon.
+        ex = side * (R + 1.05)
+        ey = 0.55
+        engine(body, ex, ey, -5.6, 0.62)
+        box(body, "Body", [min(side * 0.9, ex - side * 0.2), ey - 0.12, -8.2], [max(side * 0.9, ex - side * 0.2), ey + 0.12, -6.6])
+    # T-tail: a tall swept fin in the livery colour with the tailplane on top.
+    r_f, cy_f = fuselage_profile(-11.0)
+    fin = wing(body, "Livery", [0, cy_f + r_f * 0.85, -9.4], 5.6, 2.3, 4.8, [0, 1, 0], [1, 0, 0], 47, 0, 0.1, SYMMETRIC)
+    fin_tip = fin[1][0]
+    for side in (1, -1):
+        wing(body, "Body", fin_tip + np.array([side * 0.12, -0.05, -0.2]), 2.3, 1.0, 4.3, [side, 0, 0], [0, 1, 0], 30, -2, 0.09, SYMMETRIC)
+    light(body, "Strobe", [0, fuselage_profile(TAIL)[1], TAIL - 0.12], 0.17)
+    light(body, "Beacon", [0, R * 1.04 + 0.04, 0.5], 0.22)
+    light(body, "Beacon", [0, -R * 1.04 - 0.04, -1.5], 0.22)
 
     gear = Mesh()
     # Nose gear.
-    nose_z = 13.4
+    nose_z = 11.0
     _, ncy = fuselage_profile(nose_z)
-    box(gear, "Metal", [-0.14, GROUND + 0.6, nose_z - 0.14], [0.14, ncy - R * 0.9, nose_z + 0.14])
-    for x in (-0.3, 0.3):
-        wheel(gear, x, GROUND + 0.55, nose_z, 0.55, 0.32)
-    # Main gear under the wing roots, two wheels each.
+    box(gear, "Metal", [-0.1, GROUND + 0.42, nose_z - 0.1], [0.1, ncy - R * 0.85, nose_z + 0.1])
+    for x in (-0.2, 0.2):
+        wheel(gear, x, GROUND + 0.4, nose_z, 0.4, 0.24)
+    # Main gear under the wings, a pair of wheels each.
     for side in (1, -1):
-        x = side * 3.0
-        box(gear, "Metal", [x - 0.18, GROUND + 0.62, -1.4], [x + 0.18, wing_root_y - 0.3, -1.0])
-        for dx in (-0.36, 0.36):
-            for z in (-0.6, -1.8):
-                wheel(gear, x + dx, GROUND + 0.62, z)
+        x = side * 2.3
+        box(gear, "Metal", [x - 0.12, GROUND + 0.48, -1.75], [x + 0.12, wing_root_y - 0.2, -1.45])
+        for dx in (-0.24, 0.24):
+            wheel(gear, x + dx, GROUND + 0.48, -1.6, 0.48, 0.3)
     return body, gear
 
 

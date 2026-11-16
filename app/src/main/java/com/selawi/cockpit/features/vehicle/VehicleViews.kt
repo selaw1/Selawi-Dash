@@ -272,8 +272,8 @@ private fun MotionTag(m: MotionState) {
     }
 }
 
-/** Colours for the climb, like the ones for speed: accent going up, amber coming down. */
-private val Descend = Color(0xFFFFB74D)
+/** Colours for the climb, like the ones for speed: accent going up, brake red coming down. */
+private val Descend = BrakeRed
 
 private fun climbColour(climbMps: Float): Color? = when {
     climbMps >= 1.5f -> CockpitColors.Accent
