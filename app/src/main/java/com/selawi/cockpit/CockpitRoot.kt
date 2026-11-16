@@ -129,7 +129,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         val savedPaint by app.settings.carPaint.collectAsStateWithLifecycle(initialValue = "Pearl")
         var previewPaint by remember { mutableStateOf<String?>(null) }
         val carPaint = previewPaint ?: savedPaint
-        val savedPlanePaint by app.settings.planePaint.collectAsStateWithLifecycle(initialValue = "#FFB8BEC6")
+        val savedPlanePaint by app.settings.planePaint.collectAsStateWithLifecycle(initialValue = "Pearl")
         var previewPlanePaint by remember { mutableStateOf<String?>(null) }
         val planePaint = previewPlanePaint ?: savedPlanePaint
         val onPlanePaint: (String, Boolean) -> Unit = { paint, final ->

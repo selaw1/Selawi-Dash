@@ -82,7 +82,7 @@ class DashboardState(
     /** Car or plane: Auto by speed, or chosen with the quick button. */
     val flightMode: FlightMode = FlightMode.Auto,
     /** The jet's own colour in flight mode. */
-    val planePaint: String = "#FFB8BEC6",
+    val planePaint: String = "Pearl",
 )
 
 @Composable

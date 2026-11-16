@@ -127,11 +127,10 @@ class CarControl {
     /** Climb in metres a second; the plane's nose follows it in the air. */
     var climb = 0f
     /** The jet's body colour (ARGB). */
-    var planePaint: Int = 0xFFB8BEC6.toInt()
+    var planePaint: Int = 0xFFE9EEF2.toInt()
     /** Its tails, stripes and wingtips (ARGB): the accent colour. */
     var livery: Int = 0xFF2F6BFF.toInt()
-    /** 0 … 1 while accelerating; the jet's exhaust glows brighter with it. */
-    var boost = 0f
+
     /** World positions of the two ends of the rear indicator light (x, y, z each), when known. */
     val signalEnds = FloatArray(6)
     var hasSignalEnds = false
@@ -476,8 +475,8 @@ private class CarRenderer(
 
     /**
      * The plane: [arrive] 0…1 brings it in, [air] folds the gear and lets it bank into turns and
-     * pitch with the climb. Wingtip navigation lights stay on, the strobe double-flashes and the
-     * exhaust glows, brighter while accelerating.
+     * pitch with the climb. Wingtip navigation lights stay on, the strobes double-flash and the
+     * beacon pulses.
      */
     private fun animatePlane(arrive: Float, air: Float, yaw: Float, steer: Float) {
         val p = plane ?: return
@@ -515,9 +514,8 @@ private class CarRenderer(
         lightPlane("NavRed", 2.6f, 0.06f, 0.04f)
         lightPlane("NavGreen", 0.06f, 2.6f, 0.5f)
         lightPlane("Strobe", strobe, strobe, strobe)
-        // A warm idle glow, flaring towards white-hot with the throttle, with a slight flicker.
-        val burn = (0.8f + 5f * control.boost.coerceIn(0f, 1f)) * (0.94f + 0.06f * kotlin.math.sin(clock * 37f))
-        lightPlane("Afterburner", burn, burn * (0.38f + 0.2f * control.boost), burn * 0.1f)
+        val beacon = if (clock % 1.1f < 0.14f) 4f else 0.12f
+        lightPlane("Beacon", beacon, beacon * 0.05f, beacon * 0.03f)
         if (control.livery != appliedLivery) {
             appliedLivery = control.livery
             recolour("Livery", control.livery)
@@ -723,7 +721,7 @@ private class CarRenderer(
         const val INTRO_SWING_MS = 2400f
         const val WHEEL_RADIUS_M = 0.34f
         val WHEEL_NODES = listOf("WheelFrontL", "WheelFrontR", "WheelRearL", "WheelRearR")
-        val LIGHT_MATERIALS = setOf("NavRed", "NavGreen", "Strobe", "Afterburner")
+        val LIGHT_MATERIALS = setOf("NavRed", "NavGreen", "Strobe", "Beacon")
     }
 }
 

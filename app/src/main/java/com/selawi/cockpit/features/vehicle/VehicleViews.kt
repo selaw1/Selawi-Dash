@@ -60,7 +60,7 @@ fun VehiclePanel(
     compact: Boolean = false,
     weather: com.selawi.cockpit.features.weather.Weather? = null,
     paint: String = CarPaint.Pearl,
-    planePaint: String = "#FFB8BEC6",
+    planePaint: String = "Pearl",
 ) {
     val speed by animateIntAsState(state.speedKmh, tween(600), label = "speed")
     Column(
