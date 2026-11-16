@@ -162,6 +162,16 @@ class ScreenshotTest {
         Dashboard(compact, cruising)
     }
 
+    /** A long flight's big numbers must still fit on one line, on the car and on smaller screens. */
+    @Test
+    fun planeLongHaul() = shot(Destination.Home) { compact -> Dashboard(compact, longHaul) }
+
+    @Test
+    fun planeLongHaulSmall() {
+        paparazzi.unsafeUpdateConfig(deviceConfig = carScreen(1024, 600, Density.MEDIUM))
+        shot(Destination.Home) { compact -> Dashboard(compact, longHaul) }
+    }
+
     @Test
     fun planeCruisingNight() = shot(Destination.Home, dark = true) { compact ->
         Dashboard(compact, cruising.copy(climbMps = -9f), isDay = false)
@@ -184,6 +194,11 @@ class ScreenshotTest {
 
     private val parked = DrivingState(trip = Trip(distanceKm = 23.4, movingSeconds = 2460, maxKmh = 96, stops = 7))
     private val moving = DrivingState(speedKmh = 62, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96, 7))
+    private val longHaul = DrivingState(
+        speedKmh = 1104, driving = true, headingDeg = 60f, altitudeM = 12_497, climbMps = -12f,
+        planeSpeed = true, airborne = true, flying = true,
+        flight = FlightStats(distanceKm = 12_846.0, airSeconds = 49_920, maxKmh = 1_128, maxAltitudeM = 13_106),
+    )
     private val cruising = DrivingState(
         speedKmh = 868, driving = true, headingDeg = 285f, altitudeM = 10_640, climbMps = 4f,
         planeSpeed = true, airborne = true, flying = true,

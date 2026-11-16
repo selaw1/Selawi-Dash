@@ -10,7 +10,7 @@ It is a normal app the driver opens; it does not replace or change BYD's softwar
 ## What it shows
 
 - **Car panel:** driving status and heading, speed from GPS, a 3D car that turns under your finger
-  when parked and drives down an animated road when moving, and today's trip.
+  in any direction (sideways, or tipped over up and down, all the way round) when parked and drives down an animated road when moving, and today's trip.
 - **Music:** song, artist, cover, progress and controls for whatever is playing, including the
   phone over Bluetooth / Android Auto. Covers are looked up online when the player sends none.
 - **Calls:** a card while a call rings or runs, with a button to the car's phone app.

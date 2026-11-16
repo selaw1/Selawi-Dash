@@ -108,6 +108,8 @@ internal class Telemetry(val speedKmh: Int, val driving: Boolean)
 class CarControl {
     internal var pendingDegrees = 0f
     internal var flingDegreesPerSecond = 0f
+    internal var pendingPitch = 0f
+    internal var flingPitchPerSecond = 0f
     internal var resetRequested = false
 
     /** 0 parked … 1 driving, eased by the UI; moves the camera and the car together. */
@@ -135,21 +137,25 @@ class CarControl {
     val signalEnds = FloatArray(6)
     var hasSignalEnds = false
 
-    /** The driver dragged the car round by this many degrees. */
-    fun drag(degrees: Float) {
+    /** The driver dragged the car round by this many degrees, and tipped it over by [pitch]. */
+    fun drag(degrees: Float, pitch: Float = 0f) {
         pendingDegrees += degrees
+        pendingPitch += pitch
         flingDegreesPerSecond = 0f
+        flingPitchPerSecond = 0f
     }
 
     /** The finger left the screen; the car keeps turning a little and slows down. */
-    fun release(degreesPerSecond: Float) {
+    fun release(degreesPerSecond: Float, pitchPerSecond: Float = 0f) {
         flingDegreesPerSecond = degreesPerSecond.coerceIn(-720f, 720f)
+        flingPitchPerSecond = pitchPerSecond.coerceIn(-720f, 720f)
     }
 
-    /** Back to the default front three-quarter view. */
+    /** Back to the default front three-quarter view, upright. */
     fun reset() {
         resetRequested = true
         flingDegreesPerSecond = 0f
+        flingPitchPerSecond = 0f
     }
 }
 
@@ -199,6 +205,12 @@ private class CarRenderer(
     private var aspect = 1.6
     private var clock = 0f
     private var userYaw = FRONT_YAW
+    // Tipped forwards or backwards by dragging up and down; any angle, all the way round.
+    private var userPitch = 0f
+    private var pitchDeg = 0f
+    // Half the model's height once fitted, so tipping turns it about its middle, not its wheels.
+    private var carMid = 0.3f
+    private var planeMid = 0.3f
     private var resetting = false
     // At start-up the car faces away, then swings round to the front as the intro fades.
     private var introSwing = Intro.swingAt > SystemClock.elapsedRealtime()
@@ -291,7 +303,7 @@ private class CarRenderer(
         loaded.releaseSourceData()
         asset = loaded
         scene.addEntities(loaded.entities)
-        fitToUnitSize(loaded, baseRoot)
+        carMid = fitToUnitSize(loaded, baseRoot)
         hideLogos(loaded)
         coverTireLettering(loaded)
         findWheels(loaded)
@@ -309,7 +321,7 @@ private class CarRenderer(
         loaded.releaseSourceData()
         plane = loaded
         scene.addEntities(loaded.entities)
-        fitToUnitSize(loaded, planeBase)
+        planeMid = fitToUnitSize(loaded, planeBase)
         show(loaded, false)
         val rm = engine.renderableManager
         gearEntity = loaded.getFirstEntityByName("Gear")
@@ -404,11 +416,22 @@ private class CarRenderer(
         } else {
             control.flingDegreesPerSecond = 0f
         }
+        userPitch += control.pendingPitch
+        control.pendingPitch = 0f
+        if (abs(control.flingPitchPerSecond) > 1f) {
+            userPitch += control.flingPitchPerSecond * dt
+            control.flingPitchPerSecond *= kotlin.math.exp(-3.5f * dt)
+        } else {
+            control.flingPitchPerSecond = 0f
+        }
         if (control.resetRequested) {
             control.resetRequested = false
             userYaw = yawDeg + (((FRONT_YAW - yawDeg) % 360f + 540f) % 360f - 180f)
+            // Upright again by the shortest way round.
+            userPitch = pitchDeg - (((pitchDeg % 360f) + 540f) % 360f - 180f)
             resetting = true
         }
+        pitchDeg += (userPitch - pitchDeg) * min(1f, dt * if (resetting) 3f else 14f)
         val diff = userYaw - yawDeg
         yawDeg += diff * min(1f, dt * if (resetting) 3f else 14f)
         if (abs(diff) < 0.05f) resetting = false
@@ -434,8 +457,16 @@ private class CarRenderer(
         Matrix.translateM(root, 0, 0f, bob, 0f)
         // Lean out of the bend, as a real car does.
         Matrix.rotateM(root, 0, steer * 2.2f, 0f, 0f, 1f)
+        // Tipped over by the driver while parked; level again as soon as it moves off.
+        val tilt = ((((pitchDeg % 360f) + 540f) % 360f) - 180f) * (1f - drive)
+        val tilted = FloatArray(16)
+        Matrix.setIdentityM(tilted, 0)
+        Matrix.translateM(tilted, 0, 0f, carMid, 0f)
+        Matrix.rotateM(tilted, 0, tilt, 1f, 0f, 0f)
+        Matrix.translateM(tilted, 0, 0f, -carMid, 0f)
+        Matrix.multiplyMM(tilted, 0, tilted.copyOf(), 0, root, 0)
         val world = FloatArray(16)
-        Matrix.multiplyMM(world, 0, root, 0, baseRoot, 0)
+        Matrix.multiplyMM(world, 0, tilted, 0, baseRoot, 0)
         val tm = engine.transformManager
         // The swap to the plane: the car lifts, spins away and shrinks to nothing; the plane then
         // swoops down in its place and settles with a small overshoot. Reversed, it plays backwards.
@@ -452,7 +483,7 @@ private class CarRenderer(
         Matrix.multiplyMM(carWorld, 0, away, 0, world, 0)
         tm.setTransform(tm.getInstance(loaded.root), carWorld)
         show(loaded, carGone < 0.999f)
-        animatePlane(((flight - 0.35f) / 0.65f).coerceIn(0f, 1f), air, yaw, steer)
+        animatePlane(((flight - 0.35f) / 0.65f).coerceIn(0f, 1f), air, yaw, steer, tilt)
         placeCamera()
 
         // Wheels roll with road speed (capped so they never strobe) and the front ones steer.
@@ -478,7 +509,7 @@ private class CarRenderer(
      * pitch with the climb. Wingtip navigation lights stay on, the strobes double-flash and the
      * beacon pulses.
      */
-    private fun animatePlane(arrive: Float, air: Float, yaw: Float, steer: Float) {
+    private fun animatePlane(arrive: Float, air: Float, yaw: Float, steer: Float, tilt: Float) {
         val p = plane ?: return
         show(p, arrive > 0.001f)
         if (arrive <= 0.001f) return
@@ -489,6 +520,9 @@ private class CarRenderer(
         val scale = (1f + 2.70158f * t * t * t + 1.70158f * t * t).coerceAtLeast(0.001f)
         val m = FloatArray(16)
         Matrix.setIdentityM(m, 0)
+        Matrix.translateM(m, 0, 0f, planeMid, 0f)
+        Matrix.rotateM(m, 0, tilt, 1f, 0f, 0f)
+        Matrix.translateM(m, 0, 0f, -planeMid, 0f)
         val hover = air * (0.32f + kotlin.math.sin(clock * 0.9f) * 0.025f)
         Matrix.translateM(m, 0, 0f, (1f - settle) * 0.9f + hover, 0f)
         Matrix.rotateM(m, 0, yaw - (1f - settle) * 160f, 0f, 1f, 0f)
@@ -592,8 +626,11 @@ private class CarRenderer(
         }
     }
 
-    /** Scales and centres the model to about two units long, whatever its original size. */
-    private fun fitToUnitSize(loaded: FilamentAsset, baseRoot: FloatArray) {
+    /**
+     * Scales and centres the model to about two units long, whatever its original size; returns
+     * the height of its middle.
+     */
+    private fun fitToUnitSize(loaded: FilamentAsset, baseRoot: FloatArray): Float {
         val box = loaded.boundingBox
         val half = box.halfExtent
         val maxExtent = 2f * maxOf(half[0], half[1], half[2])
@@ -603,6 +640,7 @@ private class CarRenderer(
         val c = box.center
         // Wheels on the ground (y = 0), so the car sits on the road drawn behind it.
         Matrix.translateM(baseRoot, 0, -c[0], -c[1] + half[1], -c[2])
+        return half[1] * scale
     }
 
     /** The bundled model carries Khronos logos on its plate and steering wheel; hide those parts. */

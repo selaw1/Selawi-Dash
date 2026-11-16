@@ -3,7 +3,7 @@ package com.selawi.cockpit.features.vehicle
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.gestures.detectHorizontalDragGestures
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
@@ -199,20 +199,24 @@ fun Car3D(
                 fadeEdges()
             }
         }
-        // Touch layer above the 3D view: drag to turn the car, double-tap to face it front again.
+        // Touch layer above the 3D view: drag sideways to turn the car, up and down to tip it over,
+        // all the way round either way; double-tap to stand it upright, facing front again.
         Box(
             Modifier
                 .fillMaxSize()
                 .pointerInput(control) {
                     val tracker = VelocityTracker()
-                    detectHorizontalDragGestures(
+                    detectDragGestures(
                         onDragStart = { tracker.resetTracking(); touched = true },
-                        onDragEnd = { control.release(tracker.calculateVelocity().x / size.width * DEGREES_PER_WIDTH) },
+                        onDragEnd = {
+                            val v = tracker.calculateVelocity()
+                            control.release(v.x / size.width * DEGREES_PER_WIDTH, v.y / size.height * DEGREES_PER_HEIGHT)
+                        },
                         onDragCancel = { control.release(0f) },
-                    ) { change, dx ->
+                    ) { change, drag ->
                         if (control.drive < 0.5f) {
                             tracker.addPosition(change.uptimeMillis, change.position)
-                            control.drag(dx / size.width * DEGREES_PER_WIDTH)
+                            control.drag(drag.x / size.width * DEGREES_PER_WIDTH, drag.y / size.height * DEGREES_PER_HEIGHT)
                         }
                     }
                 }
@@ -223,6 +227,8 @@ fun Car3D(
 
 /** Dragging across the whole card turns the car this far. */
 private const val DEGREES_PER_WIDTH = 240f
+/** Dragging from top to bottom of the card tips it over this far. */
+private const val DEGREES_PER_HEIGHT = 200f
 
 private const val LANE = 0.62
 private const val ROAD_EDGE = 1.25
