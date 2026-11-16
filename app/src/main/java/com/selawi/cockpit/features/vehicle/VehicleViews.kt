@@ -16,9 +16,6 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -150,24 +147,24 @@ fun VehiclePanel(
         if (state.flying) {
             val flight = state.flight
             Row(side.fillMaxWidth()) {
-                TripStat(String.format(Locale.US, "%,.0f", flight.distanceKm), "KM FLOWN", Modifier.weight(1f))
-                TripStat(minutes(flight.airSeconds), "IN THE AIR", Modifier.weight(1f))
+                TripStat(StatFormat.km(flight.distanceKm), "KM FLOWN", Modifier.weight(1f))
+                TripStat(StatFormat.duration(flight.airSeconds), "IN THE AIR", Modifier.weight(1f))
                 // The altitude takes the climb's colour while the plane ascends or descends.
                 TripStat(
-                    state.altitudeM?.let { String.format(Locale.US, "%,d", it) } ?: "–", "ALT M", Modifier.weight(1f),
+                    state.altitudeM?.let { StatFormat.number(it.toLong()) } ?: "–", "ALT M", Modifier.weight(1f),
                     (if (state.airborne) climbColour(state.climbMps) else null) ?: CockpitColors.TextPrimary,
                 )
-                TripStat(String.format(Locale.US, "%,d", flight.maxAltitudeM), "MAX ALT M", Modifier.weight(1f))
-                TripStat(String.format(Locale.US, "%,d", flight.maxKmh), "TOP KM/H", Modifier.weight(1f))
+                TripStat(StatFormat.number(flight.maxAltitudeM.toLong()), "MAX ALT M", Modifier.weight(1f))
+                TripStat(StatFormat.number(flight.maxKmh.toLong()), "TOP KM/H", Modifier.weight(1f))
             }
             return@Column
         }
         Row(side.fillMaxWidth()) {
-            TripStat(String.format(Locale.US, "%.1f", trip.distanceKm), "KM TRIP", Modifier.weight(1f))
-            TripStat(minutes(trip.movingSeconds), "DRIVING", Modifier.weight(1f))
-            TripStat("${trip.averageKmh}", "AVG KM/H", Modifier.weight(1f))
-            TripStat("${trip.maxKmh}", "TOP KM/H", Modifier.weight(1f))
-            TripStat("${trip.stops}", "STOPS", Modifier.weight(1f))
+            TripStat(StatFormat.km(trip.distanceKm), "KM TRIP", Modifier.weight(1f))
+            TripStat(StatFormat.duration(trip.movingSeconds), "DRIVING", Modifier.weight(1f))
+            TripStat(StatFormat.number(trip.averageKmh.toLong()), "AVG KM/H", Modifier.weight(1f))
+            TripStat(StatFormat.number(trip.maxKmh.toLong()), "TOP KM/H", Modifier.weight(1f))
+            TripStat(StatFormat.number(trip.stops.toLong()), "STOPS", Modifier.weight(1f))
         }
     }
 }
@@ -341,35 +338,19 @@ private fun BrakeSymbol(colour: Color, modifier: Modifier) {
 
 @Composable
 private fun TripStat(value: String, label: String, modifier: Modifier, colour: Color = CockpitColors.TextPrimary) {
-    // Each number and its label sit centred in their part of the row, under the car. Long ones
-    // (a long flight's "13h 52m" or "12,846") shrink to fit their part instead of wrapping.
+    // Each number and its label sit centred in their part of the row, under the car, all at one
+    // size. Values come from StatFormat, which keeps them to six characters, so they always fit.
     Column(modifier.padding(horizontal = 3.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         val shown by animateColorAsState(colour, tween(250), label = "statColour")
-        FitText(value, MaterialTheme.typography.headlineMedium, shown)
+        Text(value, style = MaterialTheme.typography.headlineMedium, color = shown, maxLines = 1, softWrap = false)
         Spacer(Modifier.height(2.dp))
-        FitText(label, MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.2.sp), CockpitColors.TextTertiary)
-    }
-}
-
-/** One line of text that shrinks its font just enough to fit the width it is given. */
-@Composable
-private fun FitText(text: String, style: TextStyle, colour: Color) {
-    val measurer = rememberTextMeasurer()
-    BoxWithConstraints(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-        val room = constraints.maxWidth
-        val needed = remember(text, style, room) { measurer.measure(text, style, maxLines = 1, softWrap = false).size.width }
-        val scale = if (room in 1 until needed) room.toFloat() / needed * 0.97f else 1f
-        Text(text, style = style.copy(fontSize = style.fontSize * scale), color = colour, maxLines = 1, softWrap = false)
-    }
-}
-
-private fun minutes(seconds: Long): String {
-    val h = seconds / 3600
-    val m = (seconds % 3600) / 60
-    return when {
-        h > 0 -> "${h}h ${m}m"
-        m > 0 -> "${m}m"
-        else -> "${seconds}s"
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.2.sp),
+            color = CockpitColors.TextTertiary,
+            maxLines = 1,
+            softWrap = false,
+        )
     }
 }
 
