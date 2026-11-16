@@ -1,7 +1,6 @@
 package com.selawi.cockpit.features.vehicle
 
 import com.selawi.cockpit.data.local.FlightSource
-import java.util.Locale
 import kotlin.math.roundToInt
 
 /** How things stand, for the settings: working, waiting, or something the user can fix. */
@@ -20,12 +19,8 @@ object FlightDataStatus {
         val fix = online.fix
         if (source != FlightSource.Gps && online.state == OnlineState.Live && fix != null && (source == FlightSource.Online || !gpsFixed)) {
             val age = ((nowElapsed - online.updatedAt) / 1000f + fix.ageSeconds).roundToInt().coerceAtLeast(0)
-            val lines = mutableListOf(
-                "${online.callsign} from ${online.provider}, updated $age s ago.",
-                "${(fix.speedMps * 3.6f).roundToInt()} km/h" +
-                    (fix.altitudeM?.let { String.format(Locale.US, " · %,d m", it.roundToInt()) } ?: "") +
-                    if (fix.onGround) " · on the ground" else " · in the air",
-            )
+            // Speed, altitude and the rest show on the dashboard, under the plane.
+            val lines = mutableListOf("${online.callsign} from ${online.provider}, updated $age s ago.")
             if (source == FlightSource.Auto) lines += "The GPS has no fix, so Automatic switched to online flight data. It switches back as soon as the GPS finds satellites."
             return FlightDataExplanation(FlightDataLevel.Working, "Using online flight data", lines)
         }
@@ -46,7 +41,7 @@ object FlightDataStatus {
                 GpsState.ApproximateOnly -> "GPS: only approximate location is allowed. Turn on precise location for Selawi Dash.".also { problem = true }
                 GpsState.LocationOff -> "GPS: the phone's location is switched off.".also { problem = true }
                 else -> if (gps.seen == 0) {
-                    "GPS: no satellites in view. In a plane this is normal away from a window, and dimmable windows block GPS completely."
+                    "GPS: no satellites in view."
                 } else {
                     "GPS: ${gps.used} of ${gps.seen} satellites in use; it needs about 4 for a fix. Keep the phone by a window."
                 }
@@ -61,7 +56,7 @@ object FlightDataStatus {
                 OnlineState.NoFlightNumber -> "Online: enter your flight number below to use online flight data.".also { problem = true }
                 OnlineState.BadFlightNumber -> "Online: \"$flightNumber\" doesn't look like a flight number. Use the airline code and number, like RJ183, or the callsign, like RJA183.".also { problem = true }
                 OnlineState.NoInternet -> "Online: no internet. Connect to the plane's Wi-Fi and buy internet; messaging-only packages usually block it.".also { problem = true }
-                OnlineState.NoInternetYet -> "Online: connected, but without internet yet. Open the Wi-Fi page to log in or buy internet.".also { problem = true }
+                OnlineState.NoInternetYet -> "Online: the Wi-Fi has no internet access yet. Log in or buy internet on the Wi-Fi page.".also { problem = true }
                 OnlineState.Searching -> "Online: looking up $cs…"
                 OnlineState.NotFound -> "Online: $cs isn't in the online data right now. Check the number; over the sea there are often no receivers."
                 OnlineState.Stale -> "Online: $cs was last seen ${(online.fix?.ageSeconds ?: 0f).roundToInt()} s ago. No receivers are near the plane right now (often over the sea); it continues when they are."

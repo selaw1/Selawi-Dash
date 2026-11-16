@@ -52,7 +52,7 @@ class FlightDataTest {
         val auto = FlightDataStatus.describe(FlightSource.Auto, noSky, OnlineStatus(OnlineState.NoInternet, "RJA183"), "RJ183", 0)
         assertEquals("No position yet", auto.headline)
         assertEquals(FlightDataLevel.Problem, auto.level)
-        assertTrue(auto.lines[0].startsWith("GPS: no satellites in view"))
+        assertEquals("GPS: no satellites in view.", auto.lines[0])
         assertTrue(auto.lines[1].startsWith("Online: no internet"))
 
         val gps = FlightDataStatus.describe(FlightSource.Auto, GpsInfo(GpsState.Fixed, seen = 14, used = 9), OnlineStatus(), "", 0)
