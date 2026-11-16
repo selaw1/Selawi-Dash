@@ -130,6 +130,10 @@ class OnlineFlightData(
     val status: StateFlow<OnlineStatus> = _status
 
     init {
+        scope.launch { _status.collect { driving.setOnline(it) } }
+    }
+
+    init {
         scope.launch {
             while (true) {
                 runCatching { step() }

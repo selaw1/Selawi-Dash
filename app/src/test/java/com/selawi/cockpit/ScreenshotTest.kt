@@ -177,6 +177,18 @@ class ScreenshotTest {
     }
 
     @Test
+    fun planeOnlineData() = shot(Destination.Home) { compact ->
+        Dashboard(
+            compact,
+            cruising.copy(
+                onlineCallsign = "RJA183",
+                source = com.selawi.cockpit.data.local.FlightSource.Online,
+                gps = com.selawi.cockpit.features.vehicle.GpsInfo(com.selawi.cockpit.features.vehicle.GpsState.Searching),
+            ),
+        )
+    }
+
+    @Test
     fun planeCruisingNight() = shot(Destination.Home, dark = true) { compact ->
         Dashboard(compact, cruising.copy(climbMps = -9f), isDay = false)
     }

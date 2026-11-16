@@ -199,7 +199,7 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     when (target) {
                         Destination.Home -> DashboardScreen(
                             compact = compact,
-                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint, theme = themeMode, accent = accent, needsLocation = needsLocation, flightMode = flightMode, planePaint = planePaint),
+                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint, theme = themeMode, accent = accent, needsLocation = needsLocation, flightMode = flightMode, planePaint = planePaint, onOpenSettings = { destination = Destination.Settings }),
                             controls = controls,
                             onOpenPhone = app.calls::openPhone,
                         onTheme = { scope.launch { app.settings.setTheme(it) } },

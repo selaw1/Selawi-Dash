@@ -15,6 +15,7 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import com.selawi.cockpit.data.local.FlightSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +63,7 @@ fun VehiclePanel(
     weather: com.selawi.cockpit.features.weather.Weather? = null,
     paint: String = CarPaint.Pearl,
     planePaint: String = "Pearl",
+    onOpenSettings: () -> Unit = {},
 ) {
     val speed by animateIntAsState(state.speedKmh, tween(600), label = "speed")
     Column(
@@ -93,7 +95,8 @@ fun VehiclePanel(
                 style = MaterialTheme.typography.labelMedium,
                 color = if (state.driving) CockpitColors.Accent else CockpitColors.TextSecondary,
             )
-            state.headingDeg?.let { heading ->
+            // In the air the compass ring shows the heading, leaving the row to the data source and climb.
+            state.headingDeg?.takeUnless { state.flying && state.airborne }?.let { heading ->
                 Box(Modifier.size(4.dp).clip(CircleShape).background(CockpitColors.TextTertiary))
                 Text(
                     (if (state.driving) "Heading " else "Facing ") + compassPoint(heading),
@@ -101,11 +104,11 @@ fun VehiclePanel(
                     color = CockpitColors.TextSecondary,
                 )
             }
+            PositionTag(state, onOpenSettings)
             if (state.flying && state.airborne) {
                 ClimbTag(state.climbMps)
             } else {
-                GpsTag(state.gps, state.onlineCallsign)
-            SignalTag(if (state.flying) Turn.None else state.signal)
+                SignalTag(if (state.flying) Turn.None else state.signal)
                 MotionTag(state.motion)
             }
         }
@@ -285,41 +288,48 @@ private fun climbColour(climbMps: Float): Color? = when {
 }
 
 /**
- * Why there is no position, while there is none: searching (with the satellites seen and used),
- * location switched off, approximate only, or no permission. Tapping opens the setting to fix it.
+ * Where the position comes from, or why there is none yet, following the chosen flight data
+ * method: nothing while the GPS has a fix, ONLINE DATA while online data is in use, the online
+ * lookup's progress in Online mode (and in Automatic once it has taken over), and the GPS's
+ * otherwise. Problems are red and open the setting that fixes them.
  */
 @Composable
-private fun GpsTag(gps: GpsInfo, onlineCallsign: String? = null) {
-    if (gps.state == GpsState.Fixed) return
-    // Online flight data stands in for the GPS: say so, in the accent colour.
-    if (onlineCallsign != null) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Box(Modifier.size(4.dp).clip(CircleShape).background(CockpitColors.TextTertiary))
-            Text(
-                "ONLINE DATA · $onlineCallsign",
-                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = CockpitColors.Accent,
-                maxLines = 1,
-            )
-        }
-        return
-    }
+private fun PositionTag(state: DrivingState, onOpenSettings: () -> Unit) {
+    val gps = state.gps
+    val online = state.online
+    val callsign = state.onlineCallsign
     val context = androidx.compose.ui.platform.LocalContext.current
-    val (text, problem) = when (gps.state) {
-        GpsState.Searching -> (if (gps.seen > 0) "SEARCHING GPS · ${gps.used}/${gps.seen} SATELLITES" else "SEARCHING GPS") to false
-        GpsState.LocationOff -> "LOCATION IS OFF" to true
-        GpsState.ApproximateOnly -> "TURN ON PRECISE LOCATION" to true
-        else -> "ALLOW LOCATION" to true
+    fun open(intent: android.content.Intent) {
+        runCatching { context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
     }
+    val appSettings = { open(android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null))) }
+    val wifiSettings = { open(android.content.Intent(android.provider.Settings.ACTION_WIFI_SETTINGS)) }
+    val onlineInUse = state.source == FlightSource.Online || (state.source == FlightSource.Auto && online.state != OnlineState.Standby)
+    val cs = online.callsign ?: "FLIGHT"
+    // text, colour (null = accent), and what a tap does
+    val tag: Triple<String, Color?, (() -> Unit)?>? = when {
+        callsign != null && (state.source == FlightSource.Online || gps.state != GpsState.Fixed) -> Triple("ONLINE · $callsign", null, null)
+        state.source != FlightSource.Online && gps.state == GpsState.Fixed -> null
+        onlineInUse -> when (online.state) {
+            OnlineState.NoFlightNumber, OnlineState.BadFlightNumber -> Triple("ADD FLIGHT NUMBER", BrakeRed, onOpenSettings)
+            OnlineState.NoInternet, OnlineState.NoInternetYet -> Triple("NO INTERNET", BrakeRed, wifiSettings)
+            OnlineState.NotFound -> Triple("$cs NOT FOUND ONLINE", Amber, onOpenSettings)
+            OnlineState.Stale -> Triple("$cs OUT OF RANGE ONLINE", Amber, null)
+            OnlineState.Unreachable -> Triple("ONLINE DATA UNREACHABLE", Amber, null)
+            OnlineState.Live -> Triple("ONLINE · $cs", null, null)
+            else -> Triple("FINDING $cs ONLINE", Amber, null)
+        }
+        else -> when (gps.state) {
+            GpsState.LocationOff -> Triple("LOCATION IS OFF", BrakeRed, { open(android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)) })
+            GpsState.ApproximateOnly -> Triple("TURN ON PRECISE LOCATION", BrakeRed, appSettings)
+            GpsState.NoPermission -> Triple("ALLOW LOCATION", BrakeRed, appSettings)
+            else -> Triple(if (gps.seen > 0) "SEARCHING GPS · ${gps.used}/${gps.seen} SATELLITES" else "SEARCHING GPS", Amber, null)
+        }
+    }
+    tag ?: return
+    val (text, colour, onTap) = tag
     Row(
-        Modifier.clickable(enabled = problem) {
-            val intent = if (gps.state == GpsState.LocationOff) {
-                android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
-            } else {
-                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null))
-            }
-            runCatching { context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
-        },
+        Modifier.clickable(enabled = onTap != null) { onTap?.invoke() },
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -327,11 +337,14 @@ private fun GpsTag(gps: GpsInfo, onlineCallsign: String? = null) {
         Text(
             text,
             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-            color = if (problem) BrakeRed else Color(0xFFFFB74D),
+            color = colour ?: CockpitColors.Accent,
             maxLines = 1,
         )
     }
 }
+
+/** Waiting, not wrong: the status line's amber. */
+private val Amber = Color(0xFFFFB74D)
 
 /**
  * In the air: ascending or descending, with the rate in metres a minute, shown the way braking

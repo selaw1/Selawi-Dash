@@ -83,6 +83,8 @@ class DashboardState(
     val flightMode: FlightMode = FlightMode.Auto,
     /** The jet's own colour in flight mode. */
     val planePaint: String = "Pearl",
+    /** Opens Settings, for the status line's "add flight number". */
+    val onOpenSettings: () -> Unit = {},
 )
 
 @Composable
@@ -124,7 +126,7 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
     // The car panel takes about two fifths of the width, never wider than on the Seal's own screen.
     val panelWidth = (maxWidth * 0.4f).coerceIn(360.dp, 500.dp)
     Row(Modifier.fillMaxSize().backdrop(state.backdrop, state.playing)) {
-        VehiclePanel(state.driving, Modifier.width(panelWidth).fillMaxHeight(), weather = state.weather, paint = state.carPaint, planePaint = state.planePaint)
+        VehiclePanel(state.driving, Modifier.width(panelWidth).fillMaxHeight(), weather = state.weather, paint = state.carPaint, planePaint = state.planePaint, onOpenSettings = state.onOpenSettings)
         Column(
             Modifier
                 .weight(1f)
@@ -160,7 +162,7 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
 @Composable
 private fun CompactDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit) {
     Column(Modifier.fillMaxSize().backdrop(state.backdrop, state.playing)) {
-        VehiclePanel(state.driving, Modifier.fillMaxWidth().weight(1f), compact = true, weather = state.weather, paint = state.carPaint, planePaint = state.planePaint)
+        VehiclePanel(state.driving, Modifier.fillMaxWidth().weight(1f), compact = true, weather = state.weather, paint = state.carPaint, planePaint = state.planePaint, onOpenSettings = state.onOpenSettings)
         Column(
             Modifier.padding(start = Space.l, end = Space.l, bottom = Space.m),
             verticalArrangement = Arrangement.spacedBy(Space.m),

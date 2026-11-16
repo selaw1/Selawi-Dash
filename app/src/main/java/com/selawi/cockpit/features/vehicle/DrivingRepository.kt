@@ -61,6 +61,9 @@ data class DrivingState(
     val gps: GpsInfo = GpsInfo(),
     /** The flight's callsign while the position comes from online flight data, else null. */
     val onlineCallsign: String? = null,
+    /** The chosen flight data method, and how the online lookup is going, for the status line. */
+    val source: FlightSource = FlightSource.Auto,
+    val online: OnlineStatus = OnlineStatus(),
 )
 
 enum class Turn { None, Left, Right }
@@ -161,6 +164,12 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
         }
         onlineCallsign = fix.callsign
         update(location)
+    }
+
+    /** The online lookup's progress, so the dashboard can say what it is waiting for. */
+    fun setOnline(status: OnlineStatus) {
+        val current = _state.value
+        if (current.online != status || current.source != source) _state.value = current.copy(online = status, source = source)
     }
 
     private var satellitesSeen = 0
@@ -322,6 +331,8 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
             flying = _state.value.flying,
             gps = gpsInfo(),
             onlineCallsign = onlineCallsign,
+            source = source,
+            online = _state.value.online,
         )
     }
 
