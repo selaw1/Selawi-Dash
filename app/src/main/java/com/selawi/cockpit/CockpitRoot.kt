@@ -129,6 +129,13 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         val savedPaint by app.settings.carPaint.collectAsStateWithLifecycle(initialValue = "Pearl")
         var previewPaint by remember { mutableStateOf<String?>(null) }
         val carPaint = previewPaint ?: savedPaint
+        val savedPlanePaint by app.settings.planePaint.collectAsStateWithLifecycle(initialValue = "#FFB8BEC6")
+        var previewPlanePaint by remember { mutableStateOf<String?>(null) }
+        val planePaint = previewPlanePaint ?: savedPlanePaint
+        val onPlanePaint: (String, Boolean) -> Unit = { paint, final ->
+            previewPlanePaint = paint
+            if (final) scope.launch { app.settings.setPlanePaint(paint) }
+        }
         // Shared by Settings and the home screen's quick buttons: live while dragging, saved on release.
         val onCarPaint: (String, Boolean) -> Unit = { paint, final ->
             previewPaint = paint
@@ -179,13 +186,14 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     when (target) {
                         Destination.Home -> DashboardScreen(
                             compact = compact,
-                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint, theme = themeMode, accent = accent, needsLocation = needsLocation, flightMode = flightMode),
+                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint, theme = themeMode, accent = accent, needsLocation = needsLocation, flightMode = flightMode, planePaint = planePaint),
                             controls = controls,
                             onOpenPhone = app.calls::openPhone,
                         onTheme = { scope.launch { app.settings.setTheme(it) } },
                         onCarPaint = onCarPaint,
                         onAccent = onAccent,
                         onFlightMode = { scope.launch { app.settings.setFlightMode(it) } },
+                        onPlanePaint = onPlanePaint,
                         )
                         Destination.Apps -> Box(Modifier.padding(Space.l)) {
                             LaunchedEffect(Unit) { app.apps.refresh() }

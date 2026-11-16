@@ -81,6 +81,8 @@ class DashboardState(
     val needsLocation: Boolean = false,
     /** Car or plane: Auto by speed, or chosen with the quick button. */
     val flightMode: FlightMode = FlightMode.Auto,
+    /** The jet's own colour in flight mode. */
+    val planePaint: String = "#FFB8BEC6",
 )
 
 @Composable
@@ -93,11 +95,12 @@ fun DashboardScreen(
     onCarPaint: (String, Boolean) -> Unit = { _, _ -> },
     onAccent: (Color?, Boolean) -> Unit = { _, _ -> },
     onFlightMode: (FlightMode) -> Unit = {},
+    onPlanePaint: (String, Boolean) -> Unit = { _, _ -> },
 ) {
     if (compact) {
         CompactDashboard(state, controls, onOpenPhone)
     } else {
-        WideDashboard(state, controls, onOpenPhone, QuickActions(onTheme, onCarPaint, onAccent, onFlightMode))
+        WideDashboard(state, controls, onOpenPhone, QuickActions(onTheme, onCarPaint, onAccent, onFlightMode, onPlanePaint))
     }
 }
 
@@ -121,7 +124,7 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
     // The car panel takes about two fifths of the width, never wider than on the Seal's own screen.
     val panelWidth = (maxWidth * 0.4f).coerceIn(360.dp, 500.dp)
     Row(Modifier.fillMaxSize().backdrop(state.backdrop, state.playing)) {
-        VehiclePanel(state.driving, Modifier.width(panelWidth).fillMaxHeight(), weather = state.weather, paint = state.carPaint)
+        VehiclePanel(state.driving, Modifier.width(panelWidth).fillMaxHeight(), weather = state.weather, paint = state.carPaint, planePaint = state.planePaint)
         Column(
             Modifier
                 .weight(1f)
@@ -132,14 +135,18 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
             Header(state, Modifier.fillMaxWidth())
             CallSlot(state.call, onOpenPhone)
             var panel by remember { mutableStateOf(ColourPanel.None) }
+            // In plane mode the vehicle colour button and picker are the plane's.
+            val plane = state.driving.flying
+            val vehiclePaint = if (plane) state.planePaint else state.carPaint
             FlipCard(
-                panel, state.carPaint, state.accent, quick,
+                panel, vehiclePaint, state.accent, quick,
                 onClose = { panel = ColourPanel.None },
                 modifier = Modifier.fillMaxWidth().weight(1f),
+                plane = plane,
             ) {
                 MediaCard(state.playing, controls, Modifier.fillMaxSize())
             }
-            QuickControls(state.theme, state.carPaint, panel, { panel = it }, quick.onTheme, Modifier.fillMaxWidth(), state.flightMode, quick.onFlightMode)
+            QuickControls(state.theme, vehiclePaint, panel, { panel = it }, quick.onTheme, Modifier.fillMaxWidth(), state.flightMode, quick.onFlightMode, plane)
         }
     }
     }
@@ -153,7 +160,7 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
 @Composable
 private fun CompactDashboard(state: DashboardState, controls: MediaControls, onOpenPhone: () -> Unit) {
     Column(Modifier.fillMaxSize().backdrop(state.backdrop, state.playing)) {
-        VehiclePanel(state.driving, Modifier.fillMaxWidth().weight(1f), compact = true, weather = state.weather, paint = state.carPaint)
+        VehiclePanel(state.driving, Modifier.fillMaxWidth().weight(1f), compact = true, weather = state.weather, paint = state.carPaint, planePaint = state.planePaint)
         Column(
             Modifier.padding(start = Space.l, end = Space.l, bottom = Space.m),
             verticalArrangement = Arrangement.spacedBy(Space.m),

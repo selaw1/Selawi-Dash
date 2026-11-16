@@ -61,7 +61,13 @@ import kotlin.math.sin
  * road and everything moves at the real GPS speed.
  */
 @Composable
-fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Modifier, paint: String = CarPaint.Pearl) {
+fun Car3D(
+    state: DrivingState,
+    weather: Weather? = null,
+    modifier: Modifier = Modifier,
+    paint: String = CarPaint.Pearl,
+    planePaint: String = "#FFB8BEC6",
+) {
     val control = remember { CarControl().also { it.drive = if (state.driving) 1f else 0f } }
     var touched by rememberSaveable { mutableStateOf(false) }
     val latest = rememberUpdatedState(state)
@@ -128,7 +134,7 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
                     val d = ((heading - compass + 540f) % 360f) - 180f
                     compass = (compass + d * (1 - exp(-dt * 3f)) + 360f) % 360f
                 }
-                // The plane is drawn at about 16 m a unit (the car at 2.35), so the runway and the
+                // The plane is drawn at about 10 m a unit (the car at 2.35), so the runway and the
                 // clouds pass at the right pace for its size.
                 val metresPerUnit = CarScene.METRES_PER_UNIT + (PLANE_METRES_PER_UNIT - CarScene.METRES_PER_UNIT) * flight
                 travel += s.speedKmh / 3.6f / metresPerUnit * dt
@@ -147,6 +153,7 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
                 control.flight = flight
                 control.air = air
                 control.climb = s.climbMps
+                control.boost = boost
             }
         }
     }
@@ -156,8 +163,9 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
     // Above the clouds the sky is always clear; without weather, day and night follow the theme.
     val sky = if (air > 0.5f) Sky.Clear else weather?.sky
     val isDay = weather?.isDay ?: !CockpitColors.isDark
-    // The tail takes the car's colour; pearl white would leave the plane all white, so the accent.
-    control.livery = (if (paint == CarPaint.Pearl) CockpitColors.Accent else CarPaint.swatch(paint)).toArgb()
+    // The jet in its own colour, with tails, stripes and wingtips in the accent colour.
+    control.planePaint = CarPaint.swatch(planePaint).toArgb()
+    control.livery = CockpitColors.Accent.toArgb()
     Box(modifier.clipToBounds()) {
         // Sky, road and compass in one layer whose edges fade into the panel, so the scene has no
         // box around it; the sky also fades well before the top.
@@ -171,7 +179,7 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
             fadeEdges()
         }
         if (LocalInspectionMode.current) {
-            if (flight > 0.5f) PlaneStandIn(Modifier.fillMaxSize(), Color(control.livery), air)
+            if (flight > 0.5f) PlaneStandIn(Modifier.fillMaxSize(), Color(control.planePaint), Color(control.livery), air)
             else CarStandIn(Modifier.fillMaxSize(), CarPaint.swatch(paint))
         } else {
             LiveCar(Modifier.fillMaxSize(), state.speedKmh, state.driving, control)
@@ -222,8 +230,8 @@ private const val ROAD_EDGE = 1.25
 private const val DASH = 0.55
 private const val GAP = 1.45
 
-/** The jet model is about 32 m long and drawn 2 units long. */
-private const val PLANE_METRES_PER_UNIT = 16f
+/** The jet model is about 20 m long and drawn 2 units long. */
+private const val PLANE_METRES_PER_UNIT = 10f
 private const val RUNWAY = 1.7
 
 private fun brakeLevel(m: MotionState) =
@@ -683,29 +691,26 @@ private fun DrawScope.drawPrecipitation(sky: Sky, clock: Float, speed: Float) {
 
 /** Simple drawn jet from behind for screenshot tests, where the 3D engine cannot run. */
 @Composable
-private fun PlaneStandIn(modifier: Modifier, livery: Color, air: Float) {
+private fun PlaneStandIn(modifier: Modifier, paint: Color, livery: Color, air: Float) {
     Canvas(modifier) {
         val cx = size.width / 2f
         val base = size.height * (0.62f - 0.06f * air)
-        val span = size.width * 0.4f
-        val body = Color(0xFFEDEFF2)
-        // Swept wings with raked winglets.
+        val span = size.width * 0.34f
+        val shade = Color(paint.red * 0.75f, paint.green * 0.75f, paint.blue * 0.78f)
+        // Delta wings and tailplanes, slightly drooped.
         for (side in listOf(-1f, 1f)) {
-            val tip = Offset(cx + side * span / 2, base - span * 0.04f)
-            drawLine(Color(0xFFD5DAE0), Offset(cx, base + span * 0.03f), tip, strokeWidth = span * 0.03f, cap = StrokeCap.Round)
-            drawLine(livery, tip, Offset(tip.x + side * span * 0.03f, tip.y - span * 0.09f), strokeWidth = span * 0.018f, cap = StrokeCap.Round)
-            // Engines on the rear body.
-            val engine = Offset(cx + side * span * 0.12f, base - span * 0.035f)
-            drawCircle(Color(0xFFC9CED6), radius = span * 0.038f, center = engine)
-            drawCircle(Color(0xFF16181C), radius = span * 0.024f, center = engine)
+            drawLine(shade, Offset(cx, base), Offset(cx + side * span / 2, base + span * 0.04f), strokeWidth = span * 0.03f, cap = StrokeCap.Round)
+            drawLine(livery, Offset(cx + side * span / 2, base + span * 0.02f), Offset(cx + side * span / 2, base + span * 0.07f), strokeWidth = span * 0.02f, cap = StrokeCap.Round)
+            drawLine(shade, Offset(cx, base - span * 0.01f), Offset(cx + side * span * 0.27f, base + span * 0.03f), strokeWidth = span * 0.02f, cap = StrokeCap.Round)
+            // Twin tails leaning outwards.
+            drawLine(livery, Offset(cx + side * span * 0.06f, base - span * 0.05f), Offset(cx + side * span * 0.13f, base - span * 0.24f), strokeWidth = span * 0.022f, cap = StrokeCap.Round)
         }
-        drawCircle(body, radius = span * 0.06f, center = Offset(cx, base))
-        // T-tail: the fin in the livery colour with the tailplane across its top.
-        val top = Offset(cx, base - span * 0.26f)
-        drawLine(livery, Offset(cx, base - span * 0.04f), top, strokeWidth = span * 0.026f, cap = StrokeCap.Round)
-        drawLine(body, Offset(cx - span * 0.17f, top.y + span * 0.01f), Offset(cx + span * 0.17f, top.y + span * 0.01f), strokeWidth = span * 0.018f, cap = StrokeCap.Round)
+        drawOval(paint, topLeft = Offset(cx - span * 0.1f, base - span * 0.07f), size = Size(span * 0.2f, span * 0.13f))
+        // The exhaust, glowing.
+        drawCircle(Color(0xFF6E737A), radius = span * 0.045f, center = Offset(cx, base))
+        drawCircle(Color(0xFFFF9B4A), radius = span * 0.03f, center = Offset(cx, base))
         if (air < 0.5f) {
-            for (side in listOf(-1f, 1f)) drawCircle(Color(0xFF0E1216), radius = span * 0.018f, center = Offset(cx + side * span * 0.09f, base + span * 0.09f))
+            for (side in listOf(-1f, 1f)) drawCircle(Color(0xFF0E1216), radius = span * 0.02f, center = Offset(cx + side * span * 0.14f, base + span * 0.1f))
         }
     }
 }

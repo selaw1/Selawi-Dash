@@ -20,6 +20,12 @@ class SettingsStore(private val context: Context) {
     private val backdropKey = stringPreferencesKey("backdrop")
     private val carPaintKey = stringPreferencesKey("car_paint")
     private val flightModeKey = stringPreferencesKey("flight_mode")
+    private val planePaintKey = stringPreferencesKey("plane_paint")
+
+    /** The jet's colour in flight mode, kept apart from the car's; silver by default. */
+    val planePaint: Flow<String> = context.dataStore.data.map { it[planePaintKey] ?: PLANE_DEFAULT }
+
+    suspend fun setPlanePaint(paint: String) = context.dataStore.edit { it[planePaintKey] = paint }
 
     /** Car or plane on the dashboard: Auto switches by speed. */
     val flightMode: Flow<FlightMode> = context.dataStore.data.map { prefs ->
@@ -70,6 +76,7 @@ class SettingsStore(private val context: Context) {
 
     private companion object {
         const val SEPARATOR = "|"
+        const val PLANE_DEFAULT = "#FFB8BEC6"
     }
 }
 

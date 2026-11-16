@@ -54,6 +54,8 @@ fun FlipCard(
     actions: QuickActions,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
+    /** In plane mode the vehicle picker is the plane's: its own title and colour. */
+    plane: Boolean = false,
     front: @Composable () -> Unit,
 ) {
     val rotation by animateFloatAsState(
@@ -81,14 +83,14 @@ fun FlipCard(
         } else {
             // Turned round once more, so the back reads the right way and not mirrored.
             Box(Modifier.fillMaxSize().graphicsLayer { rotationY = 180f }) {
-                ColourCard(back, carPaint, accent, actions, onClose)
+                ColourCard(back, carPaint, accent, actions, onClose, plane)
             }
         }
     }
 }
 
 @Composable
-private fun ColourCard(panel: ColourPanel, carPaint: String, accent: Color?, actions: QuickActions, onClose: () -> Unit) {
+private fun ColourCard(panel: ColourPanel, carPaint: String, accent: Color?, actions: QuickActions, onClose: () -> Unit, plane: Boolean = false) {
     CockpitCard(Modifier.fillMaxSize(), padding = Space.l) {
         AnimatedContent(
             targetState = panel,
@@ -99,7 +101,11 @@ private fun ColourCard(panel: ColourPanel, carPaint: String, accent: Color?, act
             androidx.compose.foundation.layout.Column(Modifier.fillMaxSize()) {
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        if (shown == ColourPanel.Accent) "Accent colour" else "Car colour",
+                        when {
+                            shown == ColourPanel.Accent -> "Accent colour"
+                            plane -> "Plane colour"
+                            else -> "Car colour"
+                        },
                         style = MaterialTheme.typography.titleLarge,
                         color = CockpitColors.TextPrimary,
                         modifier = Modifier.weight(1f),
@@ -115,7 +121,7 @@ private fun ColourCard(panel: ColourPanel, carPaint: String, accent: Color?, act
                     if (shown == ColourPanel.Accent) {
                         AccentPicker(accent, actions.onAccent, wheelSize = wheel)
                     } else {
-                        CarPaintPicker(carPaint, actions.onCarPaint, preview = false, wheelSize = wheel)
+                        CarPaintPicker(carPaint, if (plane) actions.onPlanePaint else actions.onCarPaint, preview = false, wheelSize = wheel)
                     }
                 }
             }

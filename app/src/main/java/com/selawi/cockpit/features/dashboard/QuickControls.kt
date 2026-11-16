@@ -58,6 +58,7 @@ class QuickActions(
     val onCarPaint: (String, Boolean) -> Unit = { _, _ -> },
     val onAccent: (Color?, Boolean) -> Unit = { _, _ -> },
     val onFlightMode: (FlightMode) -> Unit = {},
+    val onPlanePaint: (String, Boolean) -> Unit = { _, _ -> },
 )
 
 @Composable
@@ -70,6 +71,8 @@ fun QuickControls(
     modifier: Modifier = Modifier,
     flightMode: FlightMode = FlightMode.Auto,
     onFlightMode: (FlightMode) -> Unit = {},
+    /** In plane mode the first colour button is the plane's. */
+    plane: Boolean = false,
 ) {
     CockpitCard(modifier, padding = 14.dp) {
         // On narrow screens the buttons drop their labels, so the sliders keep a usable length.
@@ -80,7 +83,7 @@ fun QuickControls(
                 BrightnessSlider(Modifier.weight(1f))
                 Box(Modifier.width(1.dp).height(36.dp).background(CockpitColors.Stroke))
                 // Each opens its picker on the back of the music card; tapping again turns it back.
-                ColourButton("Car", CarPaint.swatch(carPaint), active = open == ColourPanel.Car, labels) {
+                ColourButton(if (plane) "Plane" else "Car", CarPaint.swatch(carPaint), active = open == ColourPanel.Car, labels) {
                     onOpen(if (open == ColourPanel.Car) ColourPanel.None else ColourPanel.Car)
                 }
                 ColourButton("Accent", CockpitColors.Accent, active = open == ColourPanel.Accent, labels) {
