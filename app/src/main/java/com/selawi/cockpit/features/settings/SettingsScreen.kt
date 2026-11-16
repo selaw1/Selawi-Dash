@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
@@ -27,6 +28,16 @@ import com.selawi.cockpit.core.design.SectionLabel
 import com.selawi.cockpit.core.design.Space
 import com.selawi.cockpit.data.local.Backdrop
 import com.selawi.cockpit.data.local.ThemeMode
+import com.selawi.cockpit.data.local.FlightSource
+import com.selawi.cockpit.features.vehicle.FlightDataExplanation
+import com.selawi.cockpit.features.vehicle.FlightDataLevel
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import com.selawi.cockpit.features.dashboard.drawBackdrop
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -47,6 +58,10 @@ class SettingsState(
     val motionSource: String = "",
     val backdrop: Backdrop = Backdrop.CoverGlow,
     val carPaint: String = "Pearl",
+    val flightSource: FlightSource = FlightSource.Auto,
+    val flightNumber: String = "",
+    /** What the flight data is doing right now, in plain words. */
+    val flightData: FlightDataExplanation? = null,
 )
 
 class SettingsActions(
@@ -61,6 +76,8 @@ class SettingsActions(
     val onAccent: (androidx.compose.ui.graphics.Color?, Boolean) -> Unit = { _, _ -> },
     val onBackdrop: (Backdrop) -> Unit = {},
     val onCarPaint: (String, Boolean) -> Unit = { _, _ -> },
+    val onFlightSource: (FlightSource) -> Unit = {},
+    val onFlightNumber: (String) -> Unit = {},
 )
 
 @Composable
@@ -146,6 +163,45 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
             }
         }
         CockpitCard(Modifier.fillMaxWidth()) {
+            SectionLabel("Flight data")
+            Spacer(Modifier.height(Space.s))
+            Text(
+                "Where speed, altitude and position come from. GPS is the phone's or car's own. Online is the plane's " +
+                    "own position, which every airliner broadcasts, read from adsb.lol or airplanes.live: it works where " +
+                    "GPS can't see the sky, but needs internet on board and your flight number, and runs a few seconds " +
+                    "behind. Automatic uses GPS, and online data while GPS has no fix.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = CockpitColors.TextSecondary,
+            )
+            Spacer(Modifier.height(Space.m))
+            Row(horizontalArrangement = Arrangement.spacedBy(Space.s)) {
+                listOf(FlightSource.Auto to "Automatic", FlightSource.Gps to "GPS only", FlightSource.Online to "Online only").forEach { (source, label) ->
+                    PillButton(label, primary = source == state.flightSource) { actions.onFlightSource(source) }
+                }
+            }
+            if (state.flightSource != FlightSource.Gps) {
+                Spacer(Modifier.height(Space.m))
+                OutlinedTextField(
+                    value = state.flightNumber,
+                    onValueChange = { actions.onFlightNumber(it.take(10)) },
+                    label = { Text("Flight number") },
+                    placeholder = { Text("RJ183") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters, imeAction = ImeAction.Done),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = CockpitColors.Accent,
+                        focusedLabelColor = CockpitColors.Accent,
+                        cursorColor = CockpitColors.Accent,
+                        focusedTextColor = CockpitColors.TextPrimary,
+                        unfocusedTextColor = CockpitColors.TextPrimary,
+                        unfocusedBorderColor = CockpitColors.Stroke,
+                        unfocusedLabelColor = CockpitColors.TextSecondary,
+                    ),
+                )
+            }
+            state.flightData?.let { FlightDataNow(it) }
+        }
+        CockpitCard(Modifier.fillMaxWidth()) {
             SectionLabel("Problem report")
             Spacer(Modifier.height(Space.s))
             Text(
@@ -182,7 +238,7 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
             Text(
                 "Default 3D car: \"Car Concept\" from the Khronos glTF Sample Assets, © 2024 Darmstadt Graphics Group GmbH, " +
                     "model and textures by Eric Chadwick, licensed CC BY 4.0. Logos removed. " +
-                    "Weather by Open-Meteo. Fonts: Space Grotesk and Inter, SIL Open Font License 1.1.",
+                    "Weather by Open-Meteo. Online flight data from adsb.lol (ODbL) and airplanes.live. Fonts: Space Grotesk and Inter, SIL Open Font License 1.1.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CockpitColors.TextSecondary,
             )
@@ -211,6 +267,27 @@ private fun ToggleRow(title: String, subtitle: String, checked: Boolean, onChang
             onCheckedChange = onChange,
             colors = SwitchDefaults.colors(checkedTrackColor = CockpitColors.Accent),
         )
+    }
+}
+
+/** What the flight data is doing now: a coloured dot and headline, then the reasons, one per line. */
+@Composable
+private fun FlightDataNow(e: FlightDataExplanation) {
+    val colour = when (e.level) {
+        FlightDataLevel.Working -> Color(0xFF34C759)
+        FlightDataLevel.Waiting -> Color(0xFFFFB74D)
+        FlightDataLevel.Problem -> Color(0xFFFF5A52)
+    }
+    Spacer(Modifier.height(Space.m))
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(CockpitColors.SurfaceHigh).padding(Space.m),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(Modifier.size(10.dp).clip(CircleShape).background(colour))
+            Text("Now: ${e.headline}", style = MaterialTheme.typography.titleMedium, color = CockpitColors.TextPrimary)
+        }
+        e.lines.forEach { Text(it, style = MaterialTheme.typography.bodyMedium, color = CockpitColors.TextSecondary) }
     }
 }
 

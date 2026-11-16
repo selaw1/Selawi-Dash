@@ -21,6 +21,20 @@ class SettingsStore(private val context: Context) {
     private val carPaintKey = stringPreferencesKey("car_paint")
     private val flightModeKey = stringPreferencesKey("flight_mode")
     private val planePaintKey = stringPreferencesKey("plane_paint")
+    private val flightSourceKey = stringPreferencesKey("flight_source")
+    private val flightNumberKey = stringPreferencesKey("flight_number")
+
+    /** Where speed and position come from: the GPS, online flight data, or GPS first (Automatic). */
+    val flightSource: Flow<FlightSource> = context.dataStore.data.map { prefs ->
+        prefs[flightSourceKey]?.let { runCatching { FlightSource.valueOf(it) }.getOrNull() } ?: FlightSource.Auto
+    }
+
+    suspend fun setFlightSource(source: FlightSource) = context.dataStore.edit { it[flightSourceKey] = source.name }
+
+    /** The flight number for online flight data, as typed (RJ183). */
+    val flightNumber: Flow<String> = context.dataStore.data.map { it[flightNumberKey] ?: "" }
+
+    suspend fun setFlightNumber(number: String) = context.dataStore.edit { it[flightNumberKey] = number }
 
     /** The jet's colour in flight mode, kept apart from the car's; pearl white by default. */
     val planePaint: Flow<String> = context.dataStore.data.map { it[planePaintKey] ?: PLANE_DEFAULT }
@@ -84,6 +98,9 @@ enum class ThemeMode { Auto, Light, Dark }
 
 /** Auto shows the plane once the speed is a plane's; Plane and Car fix the choice. */
 enum class FlightMode { Auto, Plane, Car }
+
+/** Automatic uses the GPS, and online flight data when the GPS has no fix; or one of them only. */
+enum class FlightSource { Auto, Gps, Online }
 
 /** Home screen backgrounds: plain, the playing cover's colour, or a fixed soft gradient. */
 enum class Backdrop(val label: String) {

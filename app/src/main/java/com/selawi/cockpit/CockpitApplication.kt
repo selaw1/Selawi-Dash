@@ -7,6 +7,7 @@ import com.selawi.cockpit.features.apps.AppsRepository
 import com.selawi.cockpit.features.calls.CallRepository
 import com.selawi.cockpit.features.media.MediaRepository
 import com.selawi.cockpit.features.vehicle.DrivingRepository
+import com.selawi.cockpit.features.vehicle.OnlineFlightData
 import com.selawi.cockpit.features.weather.WeatherRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +28,8 @@ class CockpitApplication : Application() {
         private set
     lateinit var calls: CallRepository
         private set
+    lateinit var online: OnlineFlightData
+        private set
 
     override fun onCreate() {
         super.onCreate()
@@ -37,5 +40,6 @@ class CockpitApplication : Application() {
         weather = WeatherRepository(this, scope)
         driving = DrivingRepository(this, scope)
         calls = CallRepository(this, scope)
+        online = OnlineFlightData(this, scope, driving, settings)
     }
 }

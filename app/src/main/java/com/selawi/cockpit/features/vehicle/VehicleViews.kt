@@ -104,7 +104,7 @@ fun VehiclePanel(
             if (state.flying && state.airborne) {
                 ClimbTag(state.climbMps)
             } else {
-                GpsTag(state.gps)
+                GpsTag(state.gps, state.onlineCallsign)
             SignalTag(if (state.flying) Turn.None else state.signal)
                 MotionTag(state.motion)
             }
@@ -289,8 +289,21 @@ private fun climbColour(climbMps: Float): Color? = when {
  * location switched off, approximate only, or no permission. Tapping opens the setting to fix it.
  */
 @Composable
-private fun GpsTag(gps: GpsInfo) {
+private fun GpsTag(gps: GpsInfo, onlineCallsign: String? = null) {
     if (gps.state == GpsState.Fixed) return
+    // Online flight data stands in for the GPS: say so, in the accent colour.
+    if (onlineCallsign != null) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(4.dp).clip(CircleShape).background(CockpitColors.TextTertiary))
+            Text(
+                "ONLINE DATA · $onlineCallsign",
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = CockpitColors.Accent,
+                maxLines = 1,
+            )
+        }
+        return
+    }
     val context = androidx.compose.ui.platform.LocalContext.current
     val (text, problem) = when (gps.state) {
         GpsState.Searching -> (if (gps.seen > 0) "SEARCHING GPS · ${gps.used}/${gps.seen} SATELLITES" else "SEARCHING GPS") to false

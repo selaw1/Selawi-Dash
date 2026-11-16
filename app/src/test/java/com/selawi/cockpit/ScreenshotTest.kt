@@ -192,6 +192,29 @@ class ScreenshotTest {
     }
 
     @Test
+    fun settingsFlightData() {
+        // Tall, so the flight data card further down the page is in the picture.
+        paparazzi.unsafeUpdateConfig(deviceConfig = carScreen(1920, 4400).copy(orientation = ScreenOrientation.PORTRAIT))
+        settingsFlightDataShot()
+    }
+
+    private fun settingsFlightDataShot() = shot(Destination.Settings) {
+        SettingsScreen(
+            SettingsState(
+                fullScreen = true, keepOn = false, theme = ThemeMode.Auto, crash = null,
+                flightNumber = "RJ183",
+                flightData = com.selawi.cockpit.features.vehicle.FlightDataStatus.describe(
+                    com.selawi.cockpit.data.local.FlightSource.Auto,
+                    com.selawi.cockpit.features.vehicle.GpsInfo(com.selawi.cockpit.features.vehicle.GpsState.Searching, 0, 0),
+                    com.selawi.cockpit.features.vehicle.OnlineStatus(com.selawi.cockpit.features.vehicle.OnlineState.NoInternetYet, "RJA183"),
+                    "RJ183", 0,
+                ),
+            ),
+            SettingsActions(),
+        )
+    }
+
+    @Test
     fun settings() = shot(Destination.Settings) {
         SettingsScreen(SettingsState(fullScreen = true, keepOn = false, theme = ThemeMode.Auto, crash = null), SettingsActions())
     }

@@ -8,6 +8,7 @@ import android.location.LocationManager
 import android.os.Bundle
 import android.os.SystemClock
 import com.selawi.cockpit.core.platform.hasLocationPermission
+import com.selawi.cockpit.data.local.FlightSource
 import com.selawi.cockpit.core.platform.hasPreciseLocation
 import android.location.GnssStatus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -58,6 +59,8 @@ data class DrivingState(
     /** Plane on the dashboard: [planeSpeed] in Auto mode, or chosen. Set by the screen. */
     val flying: Boolean = false,
     val gps: GpsInfo = GpsInfo(),
+    /** The flight's callsign while the position comes from online flight data, else null. */
+    val onlineCallsign: String? = null,
 )
 
 enum class Turn { None, Left, Right }
@@ -116,16 +119,52 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
 
     // All methods overridden: before Android 11 they have no default implementations.
     private val listener = object : LocationListener {
-        override fun onLocationChanged(location: Location) = update(location)
+        override fun onLocationChanged(location: Location) {
+            lastGpsFix = SystemClock.elapsedRealtime()
+            if (source == FlightSource.Online) {
+                publishGps()
+                return
+            }
+            onlineCallsign = null
+            update(location)
+        }
         override fun onProviderEnabled(provider: String) {}
         override fun onProviderDisabled(provider: String) {}
         @Deprecated("Deprecated in Android")
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
     }
 
+    /** Set from the settings: online-only ignores the GPS, GPS-only never takes online data. */
+    var source: FlightSource = FlightSource.Auto
+    private var lastGpsFix = 0L
+    private val startedAt = SystemClock.elapsedRealtime()
+    private var onlineCallsign: String? = null
+
+    /** How long the GPS has gone without a fix (or since the app started, if it never had one). */
+    fun gpsQuietMs(): Long = SystemClock.elapsedRealtime() - (if (lastGpsFix != 0L) lastGpsFix else startedAt)
+
+    /**
+     * A position from online flight data. Used in Online mode, and in Automatic mode only while
+     * the GPS has had no fix for 15 seconds, so a working GPS always wins.
+     */
+    fun onlineFix(fix: OnlineFix) {
+        if (source == FlightSource.Gps) return
+        if (source == FlightSource.Auto && gpsQuietMs() < 15_000) return
+        val location = Location("online").apply {
+            latitude = fix.latitude
+            longitude = fix.longitude
+            fix.altitudeM?.let { altitude = it }
+            speed = fix.speedMps
+            fix.trackDeg?.let { bearing = it }
+            accuracy = 25f
+            time = System.currentTimeMillis()
+        }
+        onlineCallsign = fix.callsign
+        update(location)
+    }
+
     private var satellitesSeen = 0
     private var satellitesUsed = 0
-    private var lastFixElapsed = 0L
 
     /** Satellites in view and in use, about once a second, so a missing fix can be explained. */
     private val gnss = object : GnssStatus.Callback() {
@@ -145,7 +184,7 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
             !context.hasLocationPermission() -> GpsState.NoPermission
             !context.hasPreciseLocation() -> GpsState.ApproximateOnly
             runCatching { !lm.isProviderEnabled(LocationManager.GPS_PROVIDER) }.getOrDefault(false) -> GpsState.LocationOff
-            lastFixElapsed != 0L && SystemClock.elapsedRealtime() - lastFixElapsed < 5_000 -> GpsState.Fixed
+            lastGpsFix != 0L && SystemClock.elapsedRealtime() - lastGpsFix < 5_000 -> GpsState.Fixed
             else -> GpsState.Searching
         }
         return GpsInfo(state, satellitesSeen, satellitesUsed)
@@ -185,7 +224,6 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
 
     private fun update(location: Location) {
         val now = SystemClock.elapsedRealtime()
-        lastFixElapsed = now
         val mps = if (location.hasSpeed()) location.speed else 0f
         motion.onGps(mps, location.accuracy)
         val kmh = (mps * 3.6f).roundToInt()
@@ -283,6 +321,7 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
             flight = flight,
             flying = _state.value.flying,
             gps = gpsInfo(),
+            onlineCallsign = onlineCallsign,
         )
     }
 

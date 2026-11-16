@@ -60,6 +60,9 @@ import com.selawi.cockpit.core.platform.tryStart
 import com.selawi.cockpit.data.local.Backdrop
 import com.selawi.cockpit.data.local.ThemeMode
 import com.selawi.cockpit.data.local.FlightMode
+import android.os.SystemClock
+import com.selawi.cockpit.features.vehicle.FlightDataStatus
+import com.selawi.cockpit.data.local.FlightSource
 import com.selawi.cockpit.features.apps.AppInfo
 import com.selawi.cockpit.features.apps.AppsScreen
 import com.selawi.cockpit.features.dashboard.DashboardScreen
@@ -114,6 +117,14 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         val allApps by app.apps.apps.collectAsStateWithLifecycle()
         val gps by app.driving.state.collectAsStateWithLifecycle()
         val flightMode by app.settings.flightMode.collectAsStateWithLifecycle(initialValue = FlightMode.Auto)
+        val flightSource by app.settings.flightSource.collectAsStateWithLifecycle(initialValue = FlightSource.Auto)
+        val savedFlightNumber by app.settings.flightNumber.collectAsStateWithLifecycle(initialValue = "")
+        var typedFlightNumber by remember { mutableStateOf<String?>(null) }
+        val flightNumber = typedFlightNumber ?: savedFlightNumber
+        val online by app.online.status.collectAsStateWithLifecycle()
+        // Ticks once a second, so "updated 4 s ago" in Settings stays true.
+        var secondTick by remember { mutableIntStateOf(0) }
+        LaunchedEffect(Unit) { while (true) { delay(1_000); secondTick++ } }
         // The plane shows at a plane's speed in Auto, or always / never when chosen.
         val driving = gps.copy(
             flying = when (flightMode) {
@@ -208,7 +219,14 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                             )
                         }
                         Destination.Settings -> Box(Modifier.padding(Space.l)) { SettingsScreen(
-                            state = SettingsState(fullScreen, keepOn, themeMode, crash, accent, coverStatus, motionSource, backdrop, carPaint),
+                            state = SettingsState(
+                                fullScreen, keepOn, themeMode, crash, accent, coverStatus, motionSource, backdrop, carPaint,
+                                flightSource = flightSource,
+                                flightNumber = flightNumber,
+                                flightData = secondTick.let {
+                                    FlightDataStatus.describe(flightSource, gps.gps, online, flightNumber, SystemClock.elapsedRealtime())
+                                },
+                            ),
                             actions = SettingsActions(
                                 onFullScreen = { scope.launch { app.settings.setFullScreen(it) } },
                                 onKeepOn = { scope.launch { app.settings.setKeepScreenOn(it) } },
@@ -229,6 +247,11 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                                 onBackdrop = { scope.launch { app.settings.setBackdrop(it) } },
                             onCarPaint = onCarPaint,
                                 onAccent = onAccent,
+                                onFlightSource = { scope.launch { app.settings.setFlightSource(it) } },
+                                onFlightNumber = { number ->
+                                    typedFlightNumber = number
+                                    scope.launch { app.settings.setFlightNumber(number) }
+                                },
                             ),
                         ) }
                     }
