@@ -162,9 +162,8 @@ fun Car3D(
     // Above the clouds the sky is always clear; without weather, day and night follow the theme.
     val sky = if (air > 0.5f) Sky.Clear else weather?.sky
     val isDay = weather?.isDay ?: !CockpitColors.isDark
-    // The jet in its own colour, with its tail, stripe and winglets in the accent colour.
+    // The jet in its own colour; its tail, stripe and winglets stay white.
     control.planePaint = CarPaint.swatch(planePaint).toArgb()
-    control.livery = CockpitColors.Accent.toArgb()
     Box(modifier.clipToBounds()) {
         // Sky, road and compass in one layer whose edges fade into the panel, so the scene has no
         // box around it; the sky also fades well before the top.
@@ -178,7 +177,7 @@ fun Car3D(
             fadeEdges()
         }
         if (LocalInspectionMode.current) {
-            if (flight > 0.5f) PlaneStandIn(Modifier.fillMaxSize(), Color(control.planePaint), Color(control.livery), air)
+            if (flight > 0.5f) PlaneStandIn(Modifier.fillMaxSize(), Color(control.planePaint), Color(0xFFF0F2F5), air)
             else CarStandIn(Modifier.fillMaxSize(), CarPaint.swatch(paint))
         } else {
             LiveCar(Modifier.fillMaxSize(), state.speedKmh, state.driving, control)

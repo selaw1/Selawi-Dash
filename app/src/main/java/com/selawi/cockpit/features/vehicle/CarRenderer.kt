@@ -130,8 +130,6 @@ class CarControl {
     var climb = 0f
     /** The jet's body colour (ARGB). */
     var planePaint: Int = 0xFFE9EEF2.toInt()
-    /** Its tails, stripes and wingtips (ARGB): the accent colour. */
-    var livery: Int = 0xFF2F6BFF.toInt()
 
     /** World positions of the two ends of the rear indicator light (x, y, z each), when known. */
     val signalEnds = FloatArray(6)
@@ -187,7 +185,6 @@ private class CarRenderer(
     private var gearEntity = 0
     private val gearPivot = FloatArray(3)
     private val planeLights = mutableMapOf<String, MutableList<MaterialInstance>>()
-    private var appliedLivery: Int? = null
     private var appliedPlanePaint: Int? = null
     // Parts that stay hidden however the car or plane is shown (the model's logos).
     private val hiddenParts = mutableSetOf<Int>()
@@ -337,7 +334,7 @@ private class CarRenderer(
             for (prim in 0 until rm.getPrimitiveCount(instance)) {
                 val material = rm.getMaterialInstanceAt(instance, prim)
                 val name = material.name ?: continue
-                if (name in LIGHT_MATERIALS || name == "Livery" || name == "Paint") planeLights.getOrPut(name) { mutableListOf() }.add(material)
+                if (name in LIGHT_MATERIALS || name == "Paint") planeLights.getOrPut(name) { mutableListOf() }.add(material)
             }
         }
     }
@@ -550,10 +547,6 @@ private class CarRenderer(
         lightPlane("Strobe", strobe, strobe, strobe)
         val beacon = if (clock % 1.1f < 0.14f) 4f else 0.12f
         lightPlane("Beacon", beacon, beacon * 0.05f, beacon * 0.03f)
-        if (control.livery != appliedLivery) {
-            appliedLivery = control.livery
-            recolour("Livery", control.livery)
-        }
         if (control.planePaint != appliedPlanePaint) {
             appliedPlanePaint = control.planePaint
             recolour("Paint", control.planePaint)

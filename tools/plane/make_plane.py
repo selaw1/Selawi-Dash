@@ -7,7 +7,8 @@ MIT license. Run it again after changing a dimension:
     python3 tools/plane/make_plane.py
 
 Units are metres. The nose points to +z, up is +y, so the left wing is at +x. Material names are
-what the app looks for: "Paint" takes the plane colour and "Livery" the accent colour, "NavRed",
+what the app looks for: "Paint" takes the plane colour, "Livery" (tail, winglets and stripe) stays
+white, "NavRed",
 "NavGreen", "Strobe" and "Beacon" are the lights it switches, and the node "Gear" folds away once
 the plane is in the air.
 """
@@ -35,7 +36,7 @@ MATERIALS = {
     "Belly": ((0.62, 0.66, 0.71), 0.2, 0.45, None),
     "Window": ((0.03, 0.04, 0.06), 0.0, 0.12, None),
     "Glass": ((0.02, 0.03, 0.05), 0.0, 0.08, None),
-    "Livery": ((0.18, 0.42, 1.0), 0.1, 0.32, None),
+    "Livery": ((0.94, 0.95, 0.96), 0.15, 0.36, None),
     "Engine": ((0.80, 0.82, 0.85), 0.55, 0.3, None),
     "Metal": ((0.62, 0.64, 0.66), 0.9, 0.25, None),
     "Dark": ((0.035, 0.035, 0.04), 0.2, 0.6, None),
