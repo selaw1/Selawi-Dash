@@ -39,6 +39,8 @@ import com.selawi.cockpit.features.weather.HourForecast
 import com.selawi.cockpit.features.weather.Sky
 import com.selawi.cockpit.features.weather.Weather
 import com.selawi.cockpit.features.vehicle.Trip
+import com.selawi.cockpit.features.vehicle.FlightStats
+import com.selawi.cockpit.data.local.FlightMode
 import java.time.LocalTime
 import org.junit.Rule
 import org.junit.Test
@@ -140,6 +142,32 @@ class ScreenshotTest {
     }
 
     @Test
+    fun planeAtGate() = shot(Destination.Home) { compact ->
+        Dashboard(compact, DrivingState(headingDeg = 90f, altitudeM = 780, flying = true), flightMode = FlightMode.Plane)
+    }
+
+    @Test
+    fun planeTakeOffRoll() = shot(Destination.Home) { compact ->
+        Dashboard(
+            compact,
+            DrivingState(
+                speedKmh = 236, driving = true, headingDeg = 270f, altitudeM = 781, planeSpeed = false, flying = true,
+                motion = MotionState(Motion.Accelerating, 0.8f, 2.6f),
+            ),
+        )
+    }
+
+    @Test
+    fun planeCruising() = shot(Destination.Home) { compact ->
+        Dashboard(compact, cruising)
+    }
+
+    @Test
+    fun planeCruisingNight() = shot(Destination.Home, dark = true) { compact ->
+        Dashboard(compact, cruising.copy(climbMps = -9f), isDay = false)
+    }
+
+    @Test
     fun apps() = shot(Destination.Apps) {
         AppsScreen(apps = allApps, pinned = allApps.take(5), onOpen = {}, onTogglePin = {}, onCarHome = {})
     }
@@ -156,6 +184,11 @@ class ScreenshotTest {
 
     private val parked = DrivingState(trip = Trip(distanceKm = 23.4, movingSeconds = 2460, maxKmh = 96, stops = 7))
     private val moving = DrivingState(speedKmh = 62, driving = true, headingDeg = 310f, trip = Trip(23.4, 2460, 96, 7))
+    private val cruising = DrivingState(
+        speedKmh = 868, driving = true, headingDeg = 285f, altitudeM = 10_640, climbMps = 4f,
+        planeSpeed = true, airborne = true, flying = true,
+        flight = FlightStats(distanceKm = 1184.0, airSeconds = 5340, maxKmh = 902, maxAltitudeM = 11_280),
+    )
 
     @Composable
     private fun Dashboard(
@@ -165,6 +198,7 @@ class ScreenshotTest {
         isDay: Boolean = true,
         backdrop: Backdrop = Backdrop.CoverGlow,
         carPaint: String = CarPaint.Pearl,
+        flightMode: FlightMode = FlightMode.Auto,
     ) {
         DashboardScreen(
             compact = compact,
@@ -187,6 +221,7 @@ class ScreenshotTest {
                 fixedTime = LocalDateTime.of(2026, 11, 3, 12, 51),
                 backdrop = backdrop,
                 carPaint = carPaint,
+                flightMode = flightMode,
             ),
             controls = MediaControls.None,
         )

@@ -11,3 +11,6 @@ captures/
 *.jks
 *.keystore
 key.txt
+
+# Screenshot test output; rendered on demand, not kept in the repository.
+app/src/test/snapshots/

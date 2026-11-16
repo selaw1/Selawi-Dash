@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -78,6 +79,9 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
     var compass by remember { mutableFloatStateOf(state.headingDeg ?: 0f) }
     // Seconds since the scene started, for rain, snow and stars.
     var clock by remember { mutableFloatStateOf(0f) }
+    // 0 car … 1 plane, and 0 on the ground … 1 in the air; both ease, so every change animates.
+    var flight by remember { mutableFloatStateOf(if (state.flying) 1f else 0f) }
+    var air by remember { mutableFloatStateOf(if (state.flying && state.airborne) 1f else 0f) }
     LaunchedEffect(control) {
         var last = 0L
         var lastHeading: Float? = null
@@ -96,6 +100,9 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
                 if (wasDriving && !s.driving) control.reset()
                 wasDriving = s.driving
                 clock += dt
+                // The swap takes about 2.6 s; take-off and landing scenes about 4 s.
+                flight += ((if (s.flying) 1f else 0f) - flight).coerceIn(-dt / 2.6f, dt / 2.6f)
+                air += ((if (s.flying && s.airborne) 1f else 0f) - air).coerceIn(-dt / 4f, dt / 4f)
                 // Bend from how fast the GPS heading turns, measured over at least 0.9 s however
                 // often the GPS reports, and smoothed so the road and the wheels never twitch.
                 val heading = s.headingDeg
@@ -121,7 +128,10 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
                     val d = ((heading - compass + 540f) % 360f) - 180f
                     compass = (compass + d * (1 - exp(-dt * 3f)) + 360f) % 360f
                 }
-                travel += s.speedKmh / 3.6f / CarScene.METRES_PER_UNIT * dt
+                // The plane is drawn at about 19 m a unit (the car at 2.35), so the runway and the
+                // clouds pass at the right pace for its size.
+                val metresPerUnit = CarScene.METRES_PER_UNIT + (PLANE_METRES_PER_UNIT - CarScene.METRES_PER_UNIT) * flight
+                travel += s.speedKmh / 3.6f / metresPerUnit * dt
                 // Eased over about a second, so speed changes feel like acceleration, not jumps.
                 speedFx += ((s.speedKmh / 120f).coerceIn(0f, 1f) - speedFx) * (1 - exp(-dt * 1.2f))
                 // Brake lights come on fast and fade out more slowly, like real ones.
@@ -134,32 +144,40 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
                 control.steer = steer
                 control.speedFx = speedFx
                 control.brake = brake
+                control.flight = flight
+                control.air = air
+                control.climb = s.climbMps
             }
         }
     }
 
     val letters = rememberTextMeasurer()
     val letterStyle = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
-    val sky = weather?.sky
-    val isDay = weather?.isDay ?: true
+    // Above the clouds the sky is always clear; without weather, day and night follow the theme.
+    val sky = if (air > 0.5f) Sky.Clear else weather?.sky
+    val isDay = weather?.isDay ?: !CockpitColors.isDark
+    // The tail takes the car's colour; pearl white would leave the plane all white, so the accent.
+    control.livery = (if (paint == CarPaint.Pearl) CockpitColors.Accent else CarPaint.swatch(paint)).toArgb()
     Box(modifier.clipToBounds()) {
         // Sky, road and compass in one layer whose edges fade into the panel, so the scene has no
         // box around it; the sky also fades well before the top.
         Canvas(Modifier.fillMaxSize().graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
-            val view = CarScene.view(size.width.toDouble() / size.height, drive, speedFx)
-            drawSky(view, sky, isDay, clock)
+            val view = CarScene.view(size.width.toDouble() / size.height, drive, speedFx, air)
+            drawSky(view, if (air > 0.01f && sky == null) Sky.Clear else sky, isDay, clock)
             fadeTop()
-            drawScene(view, drive, travel, steer, speedFx, brake, boost, wet = sky == Sky.Rain || sky == Sky.Storm)
+            drawScene(view, drive, travel, steer, speedFx, brake, boost, wet = sky == Sky.Rain || sky == Sky.Storm, flight, air, isDay)
             drawCompass(view, compass, drive, letters, letterStyle)
+            drawSwap(view, flight)
             fadeEdges()
         }
         if (LocalInspectionMode.current) {
-            CarStandIn(Modifier.fillMaxSize(), CarPaint.swatch(paint))
+            if (flight > 0.5f) PlaneStandIn(Modifier.fillMaxSize(), Color(control.livery), air)
+            else CarStandIn(Modifier.fillMaxSize(), CarPaint.swatch(paint))
         } else {
             LiveCar(Modifier.fillMaxSize(), state.speedKmh, state.driving, control)
         }
         // Indicator: amber light blinking on the turning side of the car's rear while driving.
-        if (state.signal != Turn.None) {
+        if (state.signal != Turn.None && flight < 0.01f) {
             val inspection = LocalInspectionMode.current
             Canvas(Modifier.fillMaxSize()) {
                 clock // Redraw every frame, so the blink keeps time.
@@ -167,7 +185,7 @@ fun Car3D(state: DrivingState, weather: Weather? = null, modifier: Modifier = Mo
             }
         }
         // Rain and snow fall in front of the car.
-        if (sky == Sky.Rain || sky == Sky.Storm || sky == Sky.Snow) {
+        if ((sky == Sky.Rain || sky == Sky.Storm || sky == Sky.Snow) && air < 0.5f) {
             Canvas(Modifier.fillMaxSize().graphicsLayer(compositingStrategy = CompositingStrategy.Offscreen)) {
                 drawPrecipitation(sky, clock, speedFx)
                 fadeTop()
@@ -204,6 +222,10 @@ private const val ROAD_EDGE = 1.25
 private const val DASH = 0.55
 private const val GAP = 1.45
 
+/** The plane model is about 38 m long and drawn 2 units long. */
+private const val PLANE_METRES_PER_UNIT = 19f
+private const val RUNWAY = 1.7
+
 private fun brakeLevel(m: MotionState) =
     if (m.motion == Motion.Braking || m.motion == Motion.HardBraking) m.level else 0f
 
@@ -217,9 +239,17 @@ private fun DrawScope.drawScene(
     brake: Float,
     boost: Float,
     wet: Boolean,
+    flight: Float = 0f,
+    air: Float = 0f,
+    isDay: Boolean = true,
 ) {
     fun p(x: Double, z: Double, y: Double = 0.0) = CarScene.project(view, x, y, z, size.width, size.height)
     val parked = 1f - drive
+    // The road belongs to the car; the plane rolls on a runway that drops away after take-off.
+    val road = drive * (1f - flight)
+    val runway = drive * flight * (1f - CarScene.smooth(air))
+    if (runway > 0.01f) drawRunway(view, travel, runway, -2.6 * CarScene.smooth(air))
+    if (air > 0.01f) drawClouds(view, travel, air * drive.coerceAtLeast(0.6f), isDay)
 
     // Showroom floor glow under the parked car.
     p(0.0, 0.0)?.let { c ->
@@ -230,7 +260,8 @@ private fun DrawScope.drawScene(
         )
     }
 
-    if (drive > 0.01f) {
+    if (road > 0.01f) {
+        val drive = road
         // The road ahead bends the way the car is turning.
         val bend = steer * 0.024
         fun roadX(x: Double, z: Double) = x + bend * z * z
@@ -326,7 +357,9 @@ private fun DrawScope.drawScene(
 
     // Braking: red light spills onto the road behind the car, stronger for harder braking.
     // Accelerating: a soft glow in the accent colour under the car.
-    if (drive > 0.01f) {
+    val ground = drive * (1f - air)
+    if (ground > 0.01f) {
+        val drive = ground
         p(0.0, 1.25)?.let { rear ->
             if (brake > 0.01f) {
                 drawCircle(
@@ -347,18 +380,134 @@ private fun DrawScope.drawScene(
         }
     }
 
-    // Contact shadow: grounds the car on the floor or the road.
+    // Contact shadow: grounds the car on the floor or the road; the plane's is wider, and gone in
+    // the air.
+    if (air > 0.98f) return
     val shadow = Path()
     var first = true
+    val sx = 0.62 + 0.4 * flight
+    val sz = 1.12 - 0.1 * flight
     for (i in 0..32) {
         val a = 2 * Math.PI * i / 32
-        val pt = p(0.62 * cos(a), 1.12 * sin(a)) ?: continue
+        val pt = p(sx * cos(a), sz * sin(a)) ?: continue
         if (first) shadow.moveTo(pt.x, pt.y) else shadow.lineTo(pt.x, pt.y)
         first = false
     }
     shadow.close()
     val centre = p(0.0, 0.0) ?: Offset(size.width / 2, size.height / 2)
-    drawPath(shadow, Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.45f), Color.Transparent), centre, size.width * 0.32f))
+    drawPath(shadow, Brush.radialGradient(listOf(Color.Black.copy(alpha = 0.45f * (1f - air)), Color.Transparent), centre, size.width * (0.32f + 0.12f * flight)))
+}
+
+/** A runway under the plane: wide asphalt, a white dashed centre line and edge lights. */
+private fun DrawScope.drawRunway(view: CarScene.View, travel: Float, alpha: Float, y: Double) {
+    fun p(x: Double, z: Double) = CarScene.project(view, x, y, z, size.width, size.height)
+    val near = 3.0
+    val far = -70.0
+    val left = (0..28).mapNotNull { i -> val z = near + (far - near) * i / 28; p(-RUNWAY, z) }
+    val right = (0..28).mapNotNull { i -> val z = near + (far - near) * i / 28; p(RUNWAY, z) }
+    if (left.size > 2 && right.size > 2) {
+        val surface = Path()
+        surface.moveTo(left.first().x, left.first().y)
+        left.drop(1).forEach { surface.lineTo(it.x, it.y) }
+        right.reversed().forEach { surface.lineTo(it.x, it.y) }
+        surface.close()
+        val asphalt = if (CockpitColors.isDark) Color(0xFF15181D) else Color(0xFF9AA1AA)
+        drawPath(surface, Brush.verticalGradient(listOf(Color.Transparent, asphalt.copy(alpha = alpha)), startY = left.last().y, endY = size.height))
+        for (edge in listOf(left, right)) {
+            for (i in 0 until edge.size - 1) {
+                val fade = 1f - i / edge.size.toFloat()
+                drawLine(Color.White.copy(alpha = 0.7f * alpha * fade), edge[i], edge[i + 1], strokeWidth = 2f * density)
+            }
+        }
+    }
+    // Centre line: long white dashes rushing past.
+    val period = 3.2
+    var z = near + (travel % period.toFloat())
+    while (z > far) {
+        val a = p(0.0, z)
+        val b = p(0.0, z - 1.5)
+        if (a != null && b != null) {
+            val fade = ((z - far) / (near - far)).toFloat().coerceIn(0f, 1f)
+            drawLine(Color.White.copy(alpha = 0.9f * alpha * fade), a, b, strokeWidth = (2f + 6f * fade) * density / 2f, cap = StrokeCap.Butt)
+        }
+        z -= period
+    }
+    // Edge lights, warm white, with a small glow.
+    val lightPeriod = 2.4
+    var lz = near + (travel % lightPeriod.toFloat())
+    while (lz > far) {
+        val fade = ((lz - far) / (near - far)).toFloat().coerceIn(0f, 1f)
+        for (x in listOf(-RUNWAY - 0.15, RUNWAY + 0.15)) {
+            val c = p(x, lz) ?: continue
+            val r = (1.2f + 3.5f * fade) * density
+            drawCircle(Brush.radialGradient(listOf(Color(0xFFFFF1C9).copy(alpha = alpha * fade), Color.Transparent), c, r * 3f), radius = r * 3f, center = c)
+            drawCircle(Color(0xFFFFF6E0).copy(alpha = alpha * fade), radius = r * 0.5f, center = c)
+        }
+        lz -= lightPeriod
+    }
+}
+
+/**
+ * The view from cruising height: a blue glow along the horizon (deep blue at night) and a layer of
+ * clouds far below, each a cluster of soft puffs, drifting past slower than the plane flies.
+ */
+private fun DrawScope.drawClouds(view: CarScene.View, travel: Float, alpha: Float, isDay: Boolean) {
+    val dark = CockpitColors.isDark
+    val horizon = CarScene.project(view, 0.0, -3.0, -120.0, size.width, size.height)?.y ?: (size.height * 0.4f)
+    val glow = if (isDay) Color(0xFF6FA8FF) else Color(0xFF2B3F7A)
+    drawRect(
+        Brush.verticalGradient(
+            listOf(Color.Transparent, glow.copy(alpha = alpha * (if (isDay) 0.35f else 0.4f)), Color.Transparent),
+            startY = horizon - size.height * 0.35f,
+            endY = horizon + size.height * 0.3f,
+        ),
+    )
+    val tint = when {
+        isDay && !dark -> Color.White
+        isDay -> Color(0xFFE4EAF2)
+        else -> Color(0xFF6A7A96)
+    }
+    val depth = 90.0
+    for (i in 0 until 30) {
+        val x = (hash(i, 1) - 0.5) * 36.0
+        val z = 4.0 - ((hash(i, 2) * depth + travel * 0.35) % depth)
+        val y = -3.6 - hash(i, 3) * 1.4
+        // In from the distance, gone before it reaches the camera.
+        val fade = (((z + depth - 4.0) / 26.0).coerceIn(0.0, 1.0) * ((-2.0 - z) / 6.0).coerceIn(0.0, 1.0)).toFloat()
+        if (fade <= 0.01f) continue
+        val puffs = 3 + (hash(i, 6) * 3).toInt()
+        for (k in 0 until puffs) {
+            val px = x + (hash(i * 7 + k, 8) - 0.5) * 3.2
+            val pz = z + (hash(i * 7 + k, 9) - 0.5) * 1.6
+            val w = 0.7 + 1.1 * hash(i * 7 + k, 10)
+            val c = CarScene.project(view, px, y + w * 0.15, pz, size.width, size.height) ?: continue
+            val edge = CarScene.project(view, px + w, y + w * 0.15, pz, size.width, size.height) ?: continue
+            val r = abs(edge.x - c.x)
+            if (r < 1f) continue
+            val a = alpha * fade * (0.55f + 0.3f * hash(i * 7 + k, 11))
+            withTransform({ scale(1f, 0.5f, pivot = c) }) {
+                drawCircle(
+                    Brush.radialGradient(0f to tint.copy(alpha = a), 0.55f to tint.copy(alpha = a * 0.75f), 1f to Color.Transparent, center = c, radius = r),
+                    radius = r,
+                    center = c,
+                )
+            }
+        }
+    }
+}
+
+/** The moment of the swap: an accent glow and a ring spreading out from under the car. */
+private fun DrawScope.drawSwap(view: CarScene.View, flight: Float) {
+    if (flight <= 0.12f || flight >= 0.88f) return
+    val phase = ((flight - 0.12f) / 0.76f).coerceIn(0f, 1f)
+    val pulse = sin(Math.PI * phase).toFloat()
+    val c = CarScene.project(view, 0.0, 0.35, 0.0, size.width, size.height) ?: return
+    val glow = size.width * (0.18f + 0.22f * pulse)
+    drawCircle(Brush.radialGradient(listOf(CockpitColors.Accent.copy(alpha = 0.55f * pulse), Color.Transparent), c, glow), radius = glow, center = c)
+    val ring = size.width * (0.06f + 0.42f * phase)
+    withTransform({ scale(1f, 0.38f, pivot = c) }) {
+        drawCircle(CockpitColors.Accent.copy(alpha = 0.8f * (1f - phase)), radius = ring, center = c, style = Stroke((1f + 3f * (1f - phase)) * density))
+    }
 }
 
 
@@ -529,6 +678,28 @@ private fun DrawScope.drawPrecipitation(sky: Sky, clock: Float, speed: Float) {
         // Two quick flashes every seven seconds.
         val t = clock % 7f
         if (t < 0.07f || t in 0.16f..0.21f) drawRect(Color.White.copy(alpha = 0.22f))
+    }
+}
+
+/** Simple drawn plane from behind for screenshot tests, where the 3D engine cannot run. */
+@Composable
+private fun PlaneStandIn(modifier: Modifier, livery: Color, air: Float) {
+    Canvas(modifier) {
+        val cx = size.width / 2f
+        val base = size.height * (0.62f - 0.06f * air)
+        val span = size.width * 0.44f
+        val body = Color(0xFFEDEFF2)
+        drawLine(Color(0xFFD5DAE0), Offset(cx - span / 2, base + span * 0.02f), Offset(cx + span / 2, base - span * 0.02f), strokeWidth = span * 0.035f, cap = StrokeCap.Round)
+        for (side in listOf(-1f, 1f)) {
+            drawCircle(Color(0xFFC9CED6), radius = span * 0.045f, center = Offset(cx + side * span * 0.17f, base + span * 0.055f))
+            drawCircle(Color(0xFF16181C), radius = span * 0.028f, center = Offset(cx + side * span * 0.17f, base + span * 0.055f))
+            drawLine(body, Offset(cx, base - span * 0.07f), Offset(cx + side * span * 0.15f, base - span * 0.09f), strokeWidth = span * 0.022f, cap = StrokeCap.Round)
+        }
+        drawCircle(body, radius = span * 0.07f, center = Offset(cx, base))
+        drawLine(livery, Offset(cx, base - span * 0.05f), Offset(cx, base - span * 0.25f), strokeWidth = span * 0.03f, cap = StrokeCap.Round)
+        if (air < 0.5f) {
+            for (side in listOf(-1f, 1f)) drawCircle(Color(0xFF0E1216), radius = span * 0.02f, center = Offset(cx + side * span * 0.07f, base + span * 0.1f))
+        }
     }
 }
 

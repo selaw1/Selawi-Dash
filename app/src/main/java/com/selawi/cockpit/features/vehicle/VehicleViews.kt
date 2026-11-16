@@ -79,8 +79,15 @@ fun VehiclePanel(
     ) {
         val side = Modifier.padding(horizontal = 32.dp)
         Row(side, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            val status = when {
+                !state.flying -> if (state.driving) "DRIVING" else "PARKED"
+                state.airborne -> "FLYING"
+                state.speedKmh >= 60 -> "ON RUNWAY"
+                state.driving -> "TAXIING"
+                else -> "AT THE GATE"
+            }
             Text(
-                if (state.driving) "DRIVING" else "PARKED",
+                status,
                 style = MaterialTheme.typography.labelMedium,
                 color = if (state.driving) CockpitColors.Accent else CockpitColors.TextSecondary,
             )
@@ -92,8 +99,12 @@ fun VehiclePanel(
                     color = CockpitColors.TextSecondary,
                 )
             }
-            SignalTag(state.signal)
-            MotionTag(state.motion)
+            if (state.flying && state.airborne) {
+                ClimbTag(state.climbMps)
+            } else {
+                SignalTag(if (state.flying) Turn.None else state.signal)
+                MotionTag(state.motion)
+            }
         }
         // Narrow window (split screen): a smaller speed, so the car keeps its room.
         Row(verticalAlignment = Alignment.Bottom, modifier = side.fillMaxWidth().padding(top = 6.dp)) {
@@ -131,6 +142,18 @@ fun VehiclePanel(
         )
         Spacer(Modifier.height(Space.m))
         val trip = state.trip
+        // In flight mode the row shows the flight: distance and time in the air, height and speed.
+        if (state.flying) {
+            val flight = state.flight
+            Row(side.fillMaxWidth()) {
+                TripStat(String.format(Locale.US, "%.0f", flight.distanceKm), "KM FLOWN", Modifier.weight(1f))
+                TripStat(minutes(flight.airSeconds), "IN THE AIR", Modifier.weight(1f))
+                TripStat(state.altitudeM?.let { String.format(Locale.US, "%,d", it) } ?: "–", "ALT M", Modifier.weight(1f))
+                TripStat(String.format(Locale.US, "%,d", flight.maxAltitudeM), "MAX ALT M", Modifier.weight(1f))
+                TripStat("${flight.maxKmh}", "TOP KM/H", Modifier.weight(1f))
+            }
+            return@Column
+        }
         Row(side.fillMaxWidth()) {
             TripStat(String.format(Locale.US, "%.1f", trip.distanceKm), "KM TRIP", Modifier.weight(1f))
             TripStat(minutes(trip.movingSeconds), "DRIVING", Modifier.weight(1f))
@@ -240,6 +263,26 @@ private fun MotionTag(m: MotionState) {
                 },
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                 color = colour,
+            )
+        }
+    }
+}
+
+/** In the air: climbing or descending, with the rate in metres a minute, once it is clear. */
+@Composable
+private fun ClimbTag(climbMps: Float) {
+    val label = when {
+        climbMps >= 1.5f -> "CLIMBING"
+        climbMps <= -1.5f -> "DESCENDING"
+        else -> null
+    }
+    AnimatedVisibility(visible = label != null, enter = fadeIn(tween(150)), exit = fadeOut(tween(400))) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Box(Modifier.size(4.dp).clip(CircleShape).background(CockpitColors.TextTertiary))
+            Text(
+                (label ?: "") + String.format(Locale.US, " %+,d m/min", (climbMps * 60).toInt()),
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = CockpitColors.Accent,
             )
         }
     }

@@ -45,6 +45,7 @@ import com.selawi.cockpit.core.design.CockpitCard
 import com.selawi.cockpit.core.design.CockpitColors
 import com.selawi.cockpit.core.design.CockpitIcons
 import com.selawi.cockpit.data.local.ThemeMode
+import com.selawi.cockpit.data.local.FlightMode
 import kotlinx.coroutines.delay
 
 /**
@@ -56,6 +57,7 @@ class QuickActions(
     val onTheme: (ThemeMode) -> Unit = {},
     val onCarPaint: (String, Boolean) -> Unit = { _, _ -> },
     val onAccent: (Color?, Boolean) -> Unit = { _, _ -> },
+    val onFlightMode: (FlightMode) -> Unit = {},
 )
 
 @Composable
@@ -66,38 +68,47 @@ fun QuickControls(
     onOpen: (ColourPanel) -> Unit,
     onTheme: (ThemeMode) -> Unit,
     modifier: Modifier = Modifier,
+    flightMode: FlightMode = FlightMode.Auto,
+    onFlightMode: (FlightMode) -> Unit = {},
 ) {
     CockpitCard(modifier, padding = 14.dp) {
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            VolumeSlider(Modifier.weight(1f))
-            BrightnessSlider(Modifier.weight(1f))
-            Box(Modifier.width(1.dp).height(36.dp).background(CockpitColors.Stroke))
-            // Each opens its picker on the back of the music card; tapping again turns it back.
-            ColourButton("Car", CarPaint.swatch(carPaint), active = open == ColourPanel.Car) {
-                onOpen(if (open == ColourPanel.Car) ColourPanel.None else ColourPanel.Car)
+        // On narrow screens the buttons drop their labels, so the sliders keep a usable length.
+        androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+            val labels = maxWidth >= 600.dp
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(if (labels) 16.dp else 10.dp)) {
+                VolumeSlider(Modifier.weight(1f))
+                BrightnessSlider(Modifier.weight(1f))
+                Box(Modifier.width(1.dp).height(36.dp).background(CockpitColors.Stroke))
+                // Each opens its picker on the back of the music card; tapping again turns it back.
+                ColourButton("Car", CarPaint.swatch(carPaint), active = open == ColourPanel.Car, labels) {
+                    onOpen(if (open == ColourPanel.Car) ColourPanel.None else ColourPanel.Car)
+                }
+                ColourButton("Accent", CockpitColors.Accent, active = open == ColourPanel.Accent, labels) {
+                    onOpen(if (open == ColourPanel.Accent) ColourPanel.None else ColourPanel.Accent)
+                }
+                // Theme and vehicle are icons only: the icon already says which (auto sun, sun or moon;
+                // a grey plane in Auto, a highlighted plane or car when chosen).
+                ThemeButton(theme, onTheme, showLabel = false)
+                FlightButton(flightMode, onFlightMode, showLabel = false)
             }
-            ColourButton("Accent", CockpitColors.Accent, active = open == ColourPanel.Accent) {
-                onOpen(if (open == ColourPanel.Accent) ColourPanel.None else ColourPanel.Accent)
-            }
-            ThemeButton(theme, onTheme)
         }
     }
 }
 
 /** A round swatch with a label: opens that colour's picker. */
 @Composable
-private fun ColourButton(label: String, colour: Color, active: Boolean, onClick: () -> Unit) {
+private fun ColourButton(label: String, colour: Color, active: Boolean, showLabel: Boolean = true, onClick: () -> Unit) {
     Row(
         Modifier
             .clip(RoundedCornerShape(14.dp))
             .background(if (active) CockpitColors.AccentDim else CockpitColors.SurfaceHigh)
             .clickable(onClick = onClick)
-            .padding(horizontal = 14.dp, vertical = 10.dp),
+            .padding(horizontal = if (showLabel) 14.dp else 11.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         Box(Modifier.size(20.dp).clip(CircleShape).background(colour).border(1.dp, CockpitColors.Stroke, CircleShape))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = CockpitColors.TextPrimary)
+        if (showLabel) Text(label, style = MaterialTheme.typography.labelMedium, color = CockpitColors.TextPrimary)
     }
 }
 
@@ -174,7 +185,7 @@ private fun ControlSlider(
 
 /** Auto → Day → Night: the same setting as in Settings, one tap away. */
 @Composable
-private fun ThemeButton(theme: ThemeMode, onTheme: (ThemeMode) -> Unit) {
+private fun ThemeButton(theme: ThemeMode, onTheme: (ThemeMode) -> Unit, showLabel: Boolean = true) {
     val (icon, label) = when (theme) {
         ThemeMode.Auto -> CockpitIcons.AutoTheme to "Auto"
         ThemeMode.Light -> CockpitIcons.Brightness to "Day"
@@ -190,12 +201,39 @@ private fun ThemeButton(theme: ThemeMode, onTheme: (ThemeMode) -> Unit) {
             .clip(RoundedCornerShape(14.dp))
             .background(CockpitColors.SurfaceHigh)
             .clickable { onTheme(next) }
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = if (showLabel) 16.dp else 10.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Icon(icon, contentDescription = null, tint = CockpitColors.Accent, modifier = Modifier.size(22.dp))
-        Text(label, style = MaterialTheme.typography.labelMedium, color = CockpitColors.TextPrimary)
+        Icon(icon, contentDescription = label, tint = CockpitColors.Accent, modifier = Modifier.size(22.dp))
+        if (showLabel) Text(label, style = MaterialTheme.typography.labelMedium, color = CockpitColors.TextPrimary)
+    }
+}
+
+/** Auto → Plane → Car: what the dashboard shows. Auto switches to the plane at a plane's speed. */
+@Composable
+private fun FlightButton(mode: FlightMode, onMode: (FlightMode) -> Unit, showLabel: Boolean = true) {
+    val (icon, label) = when (mode) {
+        FlightMode.Auto -> CockpitIcons.Flight to "Auto"
+        FlightMode.Plane -> CockpitIcons.Flight to "Plane"
+        FlightMode.Car -> CockpitIcons.Car to "Car"
+    }
+    val next = when (mode) {
+        FlightMode.Auto -> FlightMode.Plane
+        FlightMode.Plane -> FlightMode.Car
+        FlightMode.Car -> FlightMode.Auto
+    }
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (mode == FlightMode.Auto) CockpitColors.SurfaceHigh else CockpitColors.AccentDim)
+            .clickable { onMode(next) }
+            .padding(horizontal = if (showLabel) 16.dp else 10.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Icon(icon, contentDescription = "Car or plane: $label", tint = if (mode == FlightMode.Auto) CockpitColors.TextSecondary else CockpitColors.Accent, modifier = Modifier.size(22.dp))
+        if (showLabel) Text(label, style = MaterialTheme.typography.labelMedium, color = CockpitColors.TextPrimary)
     }
 }
 

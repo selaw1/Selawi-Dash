@@ -63,6 +63,8 @@ internal fun LiveCar(modifier: Modifier, speedKmh: Int, driving: Boolean, contro
     LaunchedEffect(renderer) {
         val bytes = withContext(Dispatchers.IO) { CarModel.read(context) }
         if (bytes != null) renderer.load(bytes)
+        val plane = withContext(Dispatchers.IO) { runCatching { context.assets.open("plane/plane.glb").use { it.readBytes() } }.getOrNull() }
+        if (plane != null) renderer.loadPlane(plane)
     }
     DisposableEffect(lifecycle, renderer) {
         val observer = LifecycleEventObserver { _, event ->
@@ -118,6 +120,14 @@ class CarControl {
     var brake = 0f
     /** The paint to show (see CarPaint); the renderer applies it when it changes. */
     var paint: String = CarPaint.Pearl
+    /** 0 car … 1 plane, eased by the UI; the swap animation follows it. */
+    var flight = 0f
+    /** 0 on the ground … 1 in the air, eased by the UI: the gear folds and the plane banks. */
+    var air = 0f
+    /** Climb in metres a second; the plane's nose follows it in the air. */
+    var climb = 0f
+    /** The plane's tail and winglet colour (ARGB). */
+    var livery: Int = 0xFF2F6BFF.toInt()
     /** World positions of the two ends of the rear indicator light (x, y, z each), when known. */
     val signalEnds = FloatArray(6)
     var hasSignalEnds = false
@@ -163,6 +173,15 @@ private class CarRenderer(
     private val resourceLoader: ResourceLoader
     private var swapChain: SwapChain? = null
     private var asset: FilamentAsset? = null
+    private var plane: FilamentAsset? = null
+    private val planeBase = FloatArray(16)
+    private var gearEntity = 0
+    private val gearPivot = FloatArray(3)
+    private val planeLights = mutableMapOf<String, MutableList<MaterialInstance>>()
+    private var appliedLivery: Int? = null
+    // Parts that stay hidden however the car or plane is shown (the model's logos).
+    private val hiddenParts = mutableSetOf<Int>()
+    private val shown = mutableMapOf<FilamentAsset, Boolean>()
 
     private val baseRoot = FloatArray(16)
     private val wheels = mutableListOf<Wheel>()
@@ -268,12 +287,54 @@ private class CarRenderer(
         loaded.releaseSourceData()
         asset = loaded
         scene.addEntities(loaded.entities)
-        fitToUnitSize(loaded)
+        fitToUnitSize(loaded, baseRoot)
         hideLogos(loaded)
         coverTireLettering(loaded)
         findWheels(loaded)
         findBrakeLights(loaded)
         signalEntity = loaded.getFirstEntityByName("BodyTurnsignalsRear")
+    }
+
+    /** The airliner for flight mode, loaded next to the car and hidden until the swap. */
+    fun loadPlane(bytes: ByteArray) {
+        if (destroyed || plane != null) return
+        val buffer = ByteBuffer.allocateDirect(bytes.size).order(ByteOrder.nativeOrder()).put(bytes)
+        buffer.rewind()
+        val loaded = assetLoader.createAsset(buffer) ?: return
+        resourceLoader.loadResources(loaded)
+        loaded.releaseSourceData()
+        plane = loaded
+        scene.addEntities(loaded.entities)
+        fitToUnitSize(loaded, planeBase)
+        show(loaded, false)
+        val rm = engine.renderableManager
+        gearEntity = loaded.getFirstEntityByName("Gear")
+        if (gearEntity != 0 && rm.hasComponent(gearEntity)) {
+            val box = rm.getAxisAlignedBoundingBox(rm.getInstance(gearEntity), Box())
+            // The gear folds up towards where it meets the body.
+            gearPivot[0] = box.center[0]
+            gearPivot[1] = box.center[1] + box.halfExtent[1]
+            gearPivot[2] = box.center[2]
+        }
+        for (entity in loaded.renderableEntities) {
+            val instance = rm.getInstance(entity)
+            for (prim in 0 until rm.getPrimitiveCount(instance)) {
+                val material = rm.getMaterialInstanceAt(instance, prim)
+                val name = material.name ?: continue
+                if (name in LIGHT_MATERIALS || name == "Livery") planeLights.getOrPut(name) { mutableListOf() }.add(material)
+            }
+        }
+    }
+
+    /** Shows or hides a whole model without unloading it; hidden parts such as logos stay hidden. */
+    private fun show(loaded: FilamentAsset, visible: Boolean) {
+        if (shown[loaded] == visible) return
+        shown[loaded] = visible
+        val rm = engine.renderableManager
+        for (entity in loaded.renderableEntities) {
+            if (entity in hiddenParts || !rm.hasComponent(entity)) continue
+            rm.setLayerMask(rm.getInstance(entity), 0xff, if (visible) 0xff else 0x00)
+        }
     }
 
     fun resume() {
@@ -294,6 +355,7 @@ private class CarRenderer(
         destroyed = true
         uiHelper.detach()
         asset?.let { assetLoader.destroyAsset(it) }
+        plane?.let { assetLoader.destroyAsset(it) }
         assetLoader.destroy()
         resourceLoader.destroy()
         materials.destroyMaterials()
@@ -371,7 +433,22 @@ private class CarRenderer(
         val world = FloatArray(16)
         Matrix.multiplyMM(world, 0, root, 0, baseRoot, 0)
         val tm = engine.transformManager
-        tm.setTransform(tm.getInstance(loaded.root), world)
+        // The swap to the plane: the car lifts, spins away and shrinks to nothing; the plane then
+        // swoops down in its place and settles with a small overshoot. Reversed, it plays backwards.
+        val flight = control.flight.coerceIn(0f, 1f)
+        val air = CarScene.smooth(control.air.coerceIn(0f, 1f))
+        val carGone = CarScene.smooth((flight / 0.55f).coerceIn(0f, 1f))
+        val away = FloatArray(16)
+        Matrix.setIdentityM(away, 0)
+        Matrix.translateM(away, 0, 0f, carGone * 0.5f, 0f)
+        Matrix.rotateM(away, 0, carGone * 160f, 0f, 1f, 0f)
+        val carScale = (1f - carGone).coerceAtLeast(0.001f)
+        Matrix.scaleM(away, 0, carScale, carScale, carScale)
+        val carWorld = FloatArray(16)
+        Matrix.multiplyMM(carWorld, 0, away, 0, world, 0)
+        tm.setTransform(tm.getInstance(loaded.root), carWorld)
+        show(loaded, carGone < 0.999f)
+        animatePlane(((flight - 0.35f) / 0.65f).coerceIn(0f, 1f), air, yaw, steer)
         placeCamera()
 
         // Wheels roll with road speed (capped so they never strobe) and the front ones steer.
@@ -390,6 +467,63 @@ private class CarRenderer(
         lightBrakes(control.brake.coerceIn(0f, 1f))
         locateSignals()
         lightHeadlights(Intro.headlights())
+    }
+
+    /**
+     * The plane: [arrive] 0…1 brings it in, [air] folds the gear and lets it bank into turns and
+     * pitch with the climb. Wingtip navigation lights stay on, strobes double-flash, the beacon
+     * pulses.
+     */
+    private fun animatePlane(arrive: Float, air: Float, yaw: Float, steer: Float) {
+        val p = plane ?: return
+        show(p, arrive > 0.001f)
+        if (arrive <= 0.001f) return
+        val tm = engine.transformManager
+        val settle = CarScene.smooth(arrive)
+        // Ease out with a slight overshoot, so the plane lands in place with some weight.
+        val t = arrive - 1f
+        val scale = (1f + 2.70158f * t * t * t + 1.70158f * t * t).coerceAtLeast(0.001f)
+        val m = FloatArray(16)
+        Matrix.setIdentityM(m, 0)
+        val hover = air * (0.32f + kotlin.math.sin(clock * 0.9f) * 0.025f)
+        Matrix.translateM(m, 0, 0f, (1f - settle) * 0.9f + hover, 0f)
+        Matrix.rotateM(m, 0, yaw - (1f - settle) * 160f, 0f, 1f, 0f)
+        // Nose up while climbing, down while descending; banked into the turn in the air.
+        val pitch = (control.climb / 8f).coerceIn(-1f, 1f) * 9f * air
+        Matrix.rotateM(m, 0, -pitch, 1f, 0f, 0f)
+        Matrix.rotateM(m, 0, -steer * (24f * air + 1.2f * (1f - air)), 0f, 0f, 1f)
+        Matrix.scaleM(m, 0, scale, scale, scale)
+        val world = FloatArray(16)
+        Matrix.multiplyMM(world, 0, m, 0, planeBase, 0)
+        tm.setTransform(tm.getInstance(p.root), world)
+        if (gearEntity != 0) {
+            val g = (1f - air).coerceAtLeast(0.001f)
+            val gear = FloatArray(16)
+            Matrix.setIdentityM(gear, 0)
+            Matrix.translateM(gear, 0, gearPivot[0], gearPivot[1], gearPivot[2])
+            Matrix.scaleM(gear, 0, g, g, g)
+            Matrix.translateM(gear, 0, -gearPivot[0], -gearPivot[1], -gearPivot[2])
+            tm.setTransform(tm.getInstance(gearEntity), gear)
+        }
+        val cycle = clock % 1.3f
+        val strobe = if (cycle < 0.05f || cycle in 0.13f..0.18f) 9f else 0.03f
+        val beacon = if (clock % 1.1f < 0.14f) 4f else 0.12f
+        lightPlane("NavRed", 2.6f, 0.06f, 0.04f)
+        lightPlane("NavGreen", 0.06f, 2.6f, 0.5f)
+        lightPlane("Strobe", strobe, strobe, strobe)
+        lightPlane("Beacon", beacon, beacon * 0.05f, beacon * 0.03f)
+        if (control.livery != appliedLivery) {
+            appliedLivery = control.livery
+            val c = control.livery
+            val r = linear(((c shr 16) and 0xff) / 255f)
+            val g = linear(((c shr 8) and 0xff) / 255f)
+            val b = linear((c and 0xff) / 255f)
+            planeLights["Livery"]?.forEach { runCatching { it.setParameter("baseColorFactor", r, g, b, 1f) } }
+        }
+    }
+
+    private fun lightPlane(name: String, r: Float, g: Float, b: Float) {
+        planeLights[name]?.forEach { runCatching { it.setParameter("emissiveFactor", r, g, b) } }
     }
 
     /** The model's brake and head light materials, so they can light up. */
@@ -448,7 +582,7 @@ private class CarRenderer(
     }
 
     /** Scales and centres the model to about two units long, whatever its original size. */
-    private fun fitToUnitSize(loaded: FilamentAsset) {
+    private fun fitToUnitSize(loaded: FilamentAsset, baseRoot: FloatArray) {
         val box = loaded.boundingBox
         val half = box.halfExtent
         val maxExtent = 2f * maxOf(half[0], half[1], half[2])
@@ -465,7 +599,10 @@ private class CarRenderer(
         val rm = engine.renderableManager
         for (name in listOf("License Plate", "InteriorSteeringEmblem")) {
             val entity = loaded.getFirstEntityByName(name)
-            if (entity != 0 && rm.hasComponent(entity)) rm.setLayerMask(rm.getInstance(entity), 0xff, 0x00)
+            if (entity != 0 && rm.hasComponent(entity)) {
+                rm.setLayerMask(rm.getInstance(entity), 0xff, 0x00)
+                hiddenParts += entity
+            }
         }
     }
 
@@ -549,7 +686,7 @@ private class CarRenderer(
 
     /** Same camera the road behind the car is drawn with. */
     private fun placeCamera() {
-        val v = CarScene.view(aspect, control.drive, control.speedFx)
+        val v = CarScene.view(aspect, control.drive, control.speedFx, control.air)
         camera.lookAt(v.eye[0], v.eye[1], v.eye[2], v.target[0], v.target[1], v.target[2], 0.0, 1.0, 0.0)
     }
 
@@ -573,6 +710,7 @@ private class CarRenderer(
         const val INTRO_SWING_MS = 2400f
         const val WHEEL_RADIUS_M = 0.34f
         val WHEEL_NODES = listOf("WheelFrontL", "WheelFrontR", "WheelRearL", "WheelRearR")
+        val LIGHT_MATERIALS = setOf("NavRed", "NavGreen", "Strobe", "Beacon")
     }
 }
 

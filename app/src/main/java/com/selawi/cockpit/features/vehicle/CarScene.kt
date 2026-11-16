@@ -23,20 +23,22 @@ object CarScene {
      * Parked ([drive] = 0): eye level a little above the bonnet, framing the whole car.
      * Driving ([drive] = 1): behind and to the right, a little higher, looking down the road,
      * so the side and the turning wheels show.
+     * In the air ([air] = 1): a little higher and further back, so the clouds below show.
      */
-    fun view(aspect: Double, drive: Float, speed: Float = 0f): View {
+    fun view(aspect: Double, drive: Float, speed: Float = 0f, air: Float = 0f): View {
         val k = smooth(drive.coerceIn(0f, 1f)).toDouble()
         // 0 at a standstill … 1 at about 120 km/h: the camera pulls back, drops and looks further ahead.
         val v = (smooth(speed.coerceIn(0f, 1f)) * k)
         val tanV = tan(Math.toRadians(V_FOV_DEG / 2))
         val tanH = tanV * aspect
         val parked = max(1.25 / tanH, 0.62 / tanV) + 1.0
-        val dist = parked * (1.0 + 0.05 * k + 0.16 * v)
+        val a = smooth(air.coerceIn(0f, 1f)) * k
+        val dist = parked * (1.0 + 0.05 * k + 0.16 * v + 0.12 * a)
         // A slight angle shows the side and the turning wheels while the road still runs to the middle.
         val angle = Math.toRadians(13.0 * k - 4.0 * v)
-        val height = dist * (0.19 + 0.15 * k - 0.06 * v)
+        val height = dist * (0.19 + 0.15 * k - 0.06 * v + 0.1 * a)
         val eye = doubleArrayOf(dist * sin(angle), height, dist * cos(angle))
-        val target = doubleArrayOf(0.0, 0.24 - 0.14 * k, -2.6 * k - 1.6 * v)
+        val target = doubleArrayOf(0.0, 0.24 - 0.14 * k - 0.2 * a, -2.6 * k - 1.6 * v)
         return View(eye, target, aspect)
     }
 

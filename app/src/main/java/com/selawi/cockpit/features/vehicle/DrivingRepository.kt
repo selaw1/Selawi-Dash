@@ -24,6 +24,15 @@ data class Trip(
     val averageKmh: Int get() = if (movingSeconds < 30) 0 else (distanceKm / (movingSeconds / 3600.0)).roundToInt()
 }
 
+/** A flight's numbers, from GPS: counted while the plane is in the air. */
+data class FlightStats(
+    val distanceKm: Double = 0.0,
+    val airSeconds: Long = 0,
+    val maxKmh: Int = 0,
+    /** Highest GPS altitude above sea level, in metres. */
+    val maxAltitudeM: Int = 0,
+)
+
 data class DrivingState(
     val speedKmh: Int = 0,
     val driving: Boolean = false,
@@ -35,6 +44,17 @@ data class DrivingState(
     val lateral: Float = 0f,
     /** Which way the car is turning, as a stand-in for its indicators (which apps cannot read). */
     val signal: Turn = Turn.None,
+    /** GPS altitude above sea level in metres, when the GPS gives one. */
+    val altitudeM: Int? = null,
+    /** Climb (positive) or descent in metres a second, smoothed. */
+    val climbMps: Float = 0f,
+    /** The speed is a plane's (see [DrivingRepository]); Auto mode then shows the plane. */
+    val planeSpeed: Boolean = false,
+    /** Off the ground: fast, or well above the height where the plane last rolled slowly. */
+    val airborne: Boolean = false,
+    val flight: FlightStats = FlightStats(),
+    /** Plane on the dashboard: [planeSpeed] in Auto mode, or chosen. Set by the screen. */
+    val flying: Boolean = false,
 )
 
 enum class Turn { None, Left, Right }
@@ -71,6 +91,17 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
     private var refHeadingAt = 0L
     private var turnRate = 0f
     private var signalUntil = 0L
+    private var planeSpeed = false
+    private var fastSince = 0L
+    private var crawlSince = 0L
+    private var airborne = false
+    private var groundAltitude: Double? = null
+    private var refAltitude: Double? = null
+    private var refAltitudeAt = 0L
+    private var climb = 0f
+    private var airMs = 0L
+    private var landedAt = 0L
+    private var flight = FlightStats()
 
     // All methods overridden: before Android 11 they have no default implementations.
     private val listener = object : LocationListener {
@@ -99,6 +130,7 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
         lm.removeUpdates(listener)
         listening = false
         lastFix = null
+        refAltitude = null
         lateral = 0f
         signal = Turn.None
         _state.value = _state.value.copy(speedKmh = 0, driving = false, motion = MotionState(), lateral = 0f, signal = Turn.None)
@@ -121,13 +153,27 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
             else -> current.driving
         }
 
+        val altitude = if (location.hasAltitude()) location.altitude else null
+        updateFlight(now, kmh, altitude)
+        val inPlane = planeSpeed || airborne
+
         var trip = current.trip
         if (lastMovingAt != 0L && now - lastMovingAt > NEW_TRIP_AFTER_MS) {
             trip = Trip()
             movingMs = 0L
         }
         val previous = lastFix
-        if (previous != null && kmh >= 3 && location.accuracy < 40f) {
+        // A plane's speed covers hundreds of metres between fixes; those go to the flight instead.
+        if (previous != null && inPlane && location.accuracy < 60f) {
+            val metres = previous.distanceTo(location)
+            val elapsed = (now - lastFixAt).coerceIn(0L, 5_000L)
+            if (airborne) {
+                airMs += elapsed
+                // Allow what the speed explains, so a GPS jump does not add distance.
+                if (metres < mps * elapsed / 1000f * 1.5f + 60f) flight = flight.copy(distanceKm = flight.distanceKm + metres / 1000.0)
+                flight = flight.copy(airSeconds = airMs / 1000)
+            }
+        } else if (previous != null && kmh >= 3 && location.accuracy < 40f) {
             val metres = previous.distanceTo(location)
             // Whole milliseconds, so fixes that arrive a little under a second apart still count.
             val elapsed = (now - lastFixAt).coerceIn(0L, 5_000L)
@@ -138,13 +184,17 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
             }
         }
         // A stop: the car slows below 3 km/h after having driven at 15 km/h or more since the last one.
-        if (kmh >= 15) movedSinceStop = true
+        if (kmh >= 15 && !inPlane) movedSinceStop = true
         if (kmh < 3 && movedSinceStop) {
             movedSinceStop = false
             trip = trip.copy(stops = trip.stops + 1)
         }
         if (kmh >= 3) lastMovingAt = now
-        if (kmh > trip.maxKmh && location.accuracy < 30f) trip = trip.copy(maxKmh = kmh)
+        if (!inPlane && kmh > trip.maxKmh && location.accuracy < 30f) trip = trip.copy(maxKmh = kmh)
+        if (airborne) {
+            if (kmh > flight.maxKmh && location.accuracy < 60f) flight = flight.copy(maxKmh = kmh)
+            if (altitude != null && altitude > flight.maxAltitudeM) flight = flight.copy(maxAltitudeM = altitude.roundToInt())
+        }
         lastFix = location
         lastFixAt = now
 
@@ -169,17 +219,83 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
         lateral = lateral * 0.5f + turn.coerceIn(-12f, 12f) * 0.5f
         // Turning at 7° a second or more counts as a corner; the "indicator" stays on a moment
         // after the corner, as a real one does until the wheel straightens.
-        if (kmh >= 8 && kotlin.math.abs(turnRate) >= 7f) {
+        if (kmh >= 8 && !inPlane && kotlin.math.abs(turnRate) >= 7f) {
             signal = if (turnRate > 0) Turn.Right else Turn.Left
             signalUntil = now + 1_500
-        } else if (now > signalUntil || !driving) {
+        } else if (now > signalUntil || !driving || inPlane) {
             signal = Turn.None
         }
         val shownLateral = (lateral / 0.2f).roundToInt() * 0.2f
-        _state.value = DrivingState(kmh, driving, heading, trip, _state.value.motion, shownLateral, signal)
+        _state.value = DrivingState(
+            kmh, driving, heading, trip, _state.value.motion, shownLateral, signal,
+            altitudeM = altitude?.roundToInt(),
+            climbMps = (climb * 2f).roundToInt() / 2f,
+            planeSpeed = planeSpeed,
+            airborne = airborne,
+            flight = flight,
+            flying = _state.value.flying,
+        )
+    }
+
+    /**
+     * Plane or car, and ground or air, from speed and altitude. A plane's speed (250 km/h for three
+     * seconds) is something no car on the road reaches; it counts as a plane again for car speeds
+     * only after three minutes below 60 km/h, so taxiing to the gate keeps the plane.
+     * In the air: above 300 km/h, or 60 m above the height the plane last rolled slowly at (the
+     * runway), never below 200 km/h: planes leave and meet the runway faster than that, and a fast car
+     * climbing a mountain road does not. GPS altitude is above sea level, so the runway's own
+     * height comes from those slow fixes.
+     */
+    private fun updateFlight(now: Long, kmh: Int, altitude: Double?) {
+        if (kmh >= 250) {
+            crawlSince = 0L
+            if (fastSince == 0L) fastSince = now
+            if (now - fastSince >= 3_000) planeSpeed = true
+        } else {
+            fastSince = 0L
+            if (planeSpeed && kmh < 60) {
+                if (crawlSince == 0L) crawlSince = now
+                if (now - crawlSince >= 180_000) planeSpeed = false
+            } else {
+                crawlSince = 0L
+            }
+        }
+        if (altitude != null && kmh < 100 && !airborne) {
+            groundAltitude = groundAltitude?.let { it * 0.8 + altitude * 0.2 } ?: altitude
+        }
+        val aboveGround = if (altitude != null) groundAltitude?.let { altitude - it } else null
+        val wasAirborne = airborne
+        airborne = when {
+            kmh >= 300 -> true
+            kmh < 200 -> false
+            aboveGround != null && aboveGround > 60 -> true
+            aboveGround != null && aboveGround < 25 -> false
+            else -> airborne
+        }
+        if (airborne && !wasAirborne) {
+            // A new flight once the plane has been on the ground for an hour.
+            if (landedAt == 0L || now - landedAt > NEW_FLIGHT_AFTER_MS) {
+                flight = FlightStats()
+                airMs = 0L
+            }
+        }
+        if (!airborne && wasAirborne) landedAt = now
+        // Climb rate over at least two seconds, smoothed, so GPS height jitter does not show.
+        if (altitude == null) return
+        val ref = refAltitude
+        if (ref == null) {
+            refAltitude = altitude
+            refAltitudeAt = now
+        } else if (now - refAltitudeAt >= 2_000) {
+            val rate = ((altitude - ref) / ((now - refAltitudeAt) / 1000.0)).toFloat()
+            climb = climb * 0.6f + rate.coerceIn(-60f, 60f) * 0.4f
+            refAltitude = altitude
+            refAltitudeAt = now
+        }
     }
 
     private companion object {
         const val NEW_TRIP_AFTER_MS = 2 * 60 * 60 * 1000L
+        const val NEW_FLIGHT_AFTER_MS = 60 * 60 * 1000L
     }
 }

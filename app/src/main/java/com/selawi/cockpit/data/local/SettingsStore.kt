@@ -19,6 +19,14 @@ class SettingsStore(private val context: Context) {
     private val accentKey = androidx.datastore.preferences.core.intPreferencesKey("accent")
     private val backdropKey = stringPreferencesKey("backdrop")
     private val carPaintKey = stringPreferencesKey("car_paint")
+    private val flightModeKey = stringPreferencesKey("flight_mode")
+
+    /** Car or plane on the dashboard: Auto switches by speed. */
+    val flightMode: Flow<FlightMode> = context.dataStore.data.map { prefs ->
+        prefs[flightModeKey]?.let { runCatching { FlightMode.valueOf(it) }.getOrNull() } ?: FlightMode.Auto
+    }
+
+    suspend fun setFlightMode(mode: FlightMode) = context.dataStore.edit { it[flightModeKey] = mode.name }
 
     /** The 3D car's paint (see CarPaint); pearl white by default. */
     val carPaint: Flow<String> = context.dataStore.data.map { it[carPaintKey] ?: "Pearl" }
@@ -66,6 +74,9 @@ class SettingsStore(private val context: Context) {
 }
 
 enum class ThemeMode { Auto, Light, Dark }
+
+/** Auto shows the plane once the speed is a plane's; Plane and Car fix the choice. */
+enum class FlightMode { Auto, Plane, Car }
 
 /** Home screen backgrounds: plain, the playing cover's colour, or a fixed soft gradient. */
 enum class Backdrop(val label: String) {

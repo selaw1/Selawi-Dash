@@ -14,6 +14,11 @@ It is a normal app the driver opens; it does not replace or change BYD's softwar
 - **Music:** song, artist, cover, progress and controls for whatever is playing, including the
   phone over Bluetooth / Android Auto. Covers are looked up online when the player sends none.
 - **Calls:** a card while a call rings or runs, with a button to the car's phone app.
+- **Flight mode:** on a phone in a plane, the car turns into an airliner once the GPS speed passes
+  250 km/h (or with the plane button in quick controls). It rolls on a runway, then flies above the
+  clouds with its gear up, showing ground speed, altitude, climb rate and the flight's distance,
+  time in the air, highest altitude and top speed. GPS works in airplane mode; a window seat
+  helps.
 - **Time and weather:** current conditions, the next six hours, sunrise and sunset (Open-Meteo).
 - **Dock:** home and all apps on the left, pinned apps in the middle, settings on the right.
 - **Settings:** automatic day/night theme, accent colour wheel, full screen, keep screen on, a
@@ -59,12 +64,14 @@ Built with Claude Code. I plan each project in a long conversation with an AI as
 | `features/apps` | App list and pinned shortcuts |
 | `features/settings` | Settings screen and accent colour picker |
 
-Car facts the code relies on are in [docs/CAR.md](docs/CAR.md).
+Car facts the code relies on are in [docs/CAR.md](docs/CAR.md). The plane model is made by
+`tools/plane/make_plane.py` (`python3 tools/plane/make_plane.py`, needs numpy).
 
 ## Credits
 
 - 3D car: "Car Concept" from the Khronos glTF Sample Assets, © 2024 Darmstadt Graphics Group GmbH,
   model and textures by Eric Chadwick, CC BY 4.0 (logo parts hidden).
+- Plane: made for this project by `tools/plane/make_plane.py`, MIT like the code.
 - Fonts: Space Grotesk and Inter, SIL Open Font License 1.1 (`app/src/main/assets/licenses`).
 - Weather: Open-Meteo. Covers: iTunes Search API.
 

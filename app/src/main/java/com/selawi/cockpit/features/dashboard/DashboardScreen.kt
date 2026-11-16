@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import com.selawi.cockpit.data.local.Backdrop
 import com.selawi.cockpit.data.local.ThemeMode
+import com.selawi.cockpit.data.local.FlightMode
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.selawi.cockpit.core.design.CockpitColors
@@ -78,6 +79,8 @@ class DashboardState(
     val accent: Color? = null,
     /** No forecast because the car's position is unknown; the header asks for location. */
     val needsLocation: Boolean = false,
+    /** Car or plane: Auto by speed, or chosen with the quick button. */
+    val flightMode: FlightMode = FlightMode.Auto,
 )
 
 @Composable
@@ -89,11 +92,12 @@ fun DashboardScreen(
     onTheme: (ThemeMode) -> Unit = {},
     onCarPaint: (String, Boolean) -> Unit = { _, _ -> },
     onAccent: (Color?, Boolean) -> Unit = { _, _ -> },
+    onFlightMode: (FlightMode) -> Unit = {},
 ) {
     if (compact) {
         CompactDashboard(state, controls, onOpenPhone)
     } else {
-        WideDashboard(state, controls, onOpenPhone, QuickActions(onTheme, onCarPaint, onAccent))
+        WideDashboard(state, controls, onOpenPhone, QuickActions(onTheme, onCarPaint, onAccent, onFlightMode))
     }
 }
 
@@ -135,7 +139,7 @@ private fun WideDashboard(state: DashboardState, controls: MediaControls, onOpen
             ) {
                 MediaCard(state.playing, controls, Modifier.fillMaxSize())
             }
-            QuickControls(state.theme, state.carPaint, panel, { panel = it }, quick.onTheme, Modifier.fillMaxWidth())
+            QuickControls(state.theme, state.carPaint, panel, { panel = it }, quick.onTheme, Modifier.fillMaxWidth(), state.flightMode, quick.onFlightMode)
         }
     }
     }

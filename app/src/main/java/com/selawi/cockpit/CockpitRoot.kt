@@ -58,6 +58,7 @@ import com.selawi.cockpit.core.platform.openCarHome
 import com.selawi.cockpit.core.platform.tryStart
 import com.selawi.cockpit.data.local.Backdrop
 import com.selawi.cockpit.data.local.ThemeMode
+import com.selawi.cockpit.data.local.FlightMode
 import com.selawi.cockpit.features.apps.AppInfo
 import com.selawi.cockpit.features.apps.AppsScreen
 import com.selawi.cockpit.features.dashboard.DashboardScreen
@@ -110,7 +111,16 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
         val playing by app.media.nowPlaying.collectAsStateWithLifecycle()
         val pinned by app.apps.pinned.collectAsStateWithLifecycle()
         val allApps by app.apps.apps.collectAsStateWithLifecycle()
-        val driving by app.driving.state.collectAsStateWithLifecycle()
+        val gps by app.driving.state.collectAsStateWithLifecycle()
+        val flightMode by app.settings.flightMode.collectAsStateWithLifecycle(initialValue = FlightMode.Auto)
+        // The plane shows at a plane's speed in Auto, or always / never when chosen.
+        val driving = gps.copy(
+            flying = when (flightMode) {
+                FlightMode.Plane -> true
+                FlightMode.Car -> false
+                FlightMode.Auto -> gps.planeSpeed
+            },
+        )
         val call by app.calls.call.collectAsStateWithLifecycle()
         val coverStatus by app.media.coverStatus.collectAsStateWithLifecycle()
         val motionSource by app.driving.motion.source.collectAsStateWithLifecycle()
@@ -169,12 +179,13 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
                     when (target) {
                         Destination.Home -> DashboardScreen(
                             compact = compact,
-                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint, theme = themeMode, accent = accent, needsLocation = needsLocation),
+                            state = DashboardState(weather, playing, driving, call, backdrop = backdrop, carPaint = carPaint, theme = themeMode, accent = accent, needsLocation = needsLocation, flightMode = flightMode),
                             controls = controls,
                             onOpenPhone = app.calls::openPhone,
                         onTheme = { scope.launch { app.settings.setTheme(it) } },
                         onCarPaint = onCarPaint,
                         onAccent = onAccent,
+                        onFlightMode = { scope.launch { app.settings.setFlightMode(it) } },
                         )
                         Destination.Apps -> Box(Modifier.padding(Space.l)) {
                             LaunchedEffect(Unit) { app.apps.refresh() }
