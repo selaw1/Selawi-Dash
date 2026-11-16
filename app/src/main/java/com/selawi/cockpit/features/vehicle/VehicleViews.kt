@@ -14,6 +14,7 @@ import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -103,7 +104,8 @@ fun VehiclePanel(
             if (state.flying && state.airborne) {
                 ClimbTag(state.climbMps)
             } else {
-                SignalTag(if (state.flying) Turn.None else state.signal)
+                GpsTag(state.gps)
+            SignalTag(if (state.flying) Turn.None else state.signal)
                 MotionTag(state.motion)
             }
         }
@@ -280,6 +282,42 @@ private fun climbColour(climbMps: Float): Color? = when {
     climbMps >= 1.5f -> CockpitColors.Accent
     climbMps <= -1.5f -> Descend
     else -> null
+}
+
+/**
+ * Why there is no position, while there is none: searching (with the satellites seen and used),
+ * location switched off, approximate only, or no permission. Tapping opens the setting to fix it.
+ */
+@Composable
+private fun GpsTag(gps: GpsInfo) {
+    if (gps.state == GpsState.Fixed) return
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val (text, problem) = when (gps.state) {
+        GpsState.Searching -> (if (gps.seen > 0) "SEARCHING GPS · ${gps.used}/${gps.seen} SATELLITES" else "SEARCHING GPS") to false
+        GpsState.LocationOff -> "LOCATION IS OFF" to true
+        GpsState.ApproximateOnly -> "TURN ON PRECISE LOCATION" to true
+        else -> "ALLOW LOCATION" to true
+    }
+    Row(
+        Modifier.clickable(enabled = problem) {
+            val intent = if (gps.state == GpsState.LocationOff) {
+                android.content.Intent(android.provider.Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+            } else {
+                android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.fromParts("package", context.packageName, null))
+            }
+            runCatching { context.startActivity(intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) }
+        },
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Box(Modifier.size(4.dp).clip(CircleShape).background(CockpitColors.TextTertiary))
+        Text(
+            text,
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = if (problem) BrakeRed else Color(0xFFFFB74D),
+            maxLines = 1,
+        )
+    }
 }
 
 /**

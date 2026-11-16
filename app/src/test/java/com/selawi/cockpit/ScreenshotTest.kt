@@ -143,7 +143,11 @@ class ScreenshotTest {
 
     @Test
     fun planeAtGate() = shot(Destination.Home) { compact ->
-        Dashboard(compact, DrivingState(headingDeg = 90f, altitudeM = 780, flying = true), flightMode = FlightMode.Plane)
+        Dashboard(
+            compact,
+            DrivingState(flying = true, gps = com.selawi.cockpit.features.vehicle.GpsInfo(com.selawi.cockpit.features.vehicle.GpsState.Searching, seen = 7, used = 2)),
+            flightMode = FlightMode.Plane,
+        )
     }
 
     @Test

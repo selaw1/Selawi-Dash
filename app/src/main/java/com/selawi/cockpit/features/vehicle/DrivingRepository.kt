@@ -8,6 +8,8 @@ import android.location.LocationManager
 import android.os.Bundle
 import android.os.SystemClock
 import com.selawi.cockpit.core.platform.hasLocationPermission
+import com.selawi.cockpit.core.platform.hasPreciseLocation
+import android.location.GnssStatus
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -55,9 +57,16 @@ data class DrivingState(
     val flight: FlightStats = FlightStats(),
     /** Plane on the dashboard: [planeSpeed] in Auto mode, or chosen. Set by the screen. */
     val flying: Boolean = false,
+    val gps: GpsInfo = GpsInfo(),
 )
 
 enum class Turn { None, Left, Right }
+
+/** Why there is no position yet, so the screen can say what to do. */
+enum class GpsState { Fixed, Searching, LocationOff, ApproximateOnly, NoPermission }
+
+/** The GPS as the phone or car reports it: its state and the satellites it can see and is using. */
+data class GpsInfo(val state: GpsState = GpsState.Fixed, val seen: Int = 0, val used: Int = 0)
 
 /** Indicator blink: about 90 a minute, shared so the arrows and the car blink together. */
 fun blinkOn(now: Long = System.currentTimeMillis()) = now % 667 < 370
@@ -114,15 +123,50 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
         override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
     }
 
+    private var satellitesSeen = 0
+    private var satellitesUsed = 0
+    private var lastFixElapsed = 0L
+
+    /** Satellites in view and in use, about once a second, so a missing fix can be explained. */
+    private val gnss = object : GnssStatus.Callback() {
+        override fun onSatelliteStatusChanged(status: GnssStatus) {
+            satellitesSeen = status.satelliteCount
+            satellitesUsed = (0 until status.satelliteCount).count { status.usedInFix(it) }
+            publishGps()
+        }
+
+        override fun onStopped() = publishGps()
+    }
+
+    /** What the GPS is doing now: no permission, approximate only, switched off, searching or fixed. */
+    private fun gpsInfo(): GpsInfo {
+        val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        val state = when {
+            !context.hasLocationPermission() -> GpsState.NoPermission
+            !context.hasPreciseLocation() -> GpsState.ApproximateOnly
+            runCatching { !lm.isProviderEnabled(LocationManager.GPS_PROVIDER) }.getOrDefault(false) -> GpsState.LocationOff
+            lastFixElapsed != 0L && SystemClock.elapsedRealtime() - lastFixElapsed < 5_000 -> GpsState.Fixed
+            else -> GpsState.Searching
+        }
+        return GpsInfo(state, satellitesSeen, satellitesUsed)
+    }
+
+    private fun publishGps() {
+        val info = gpsInfo()
+        if (info != _state.value.gps) _state.value = _state.value.copy(gps = info)
+    }
+
     @SuppressLint("MissingPermission")
     fun start() {
         motion.start()
+        publishGps()
         if (listening || !context.hasLocationPermission()) return
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         listening = runCatching {
             // Ask for a fix every 0.2 s; the GPS sends as often as it can (many only once a second).
             lm.requestLocationUpdates(LocationManager.GPS_PROVIDER, 200L, 0f, listener)
         }.isSuccess
+        runCatching { lm.registerGnssStatusCallback(gnss, android.os.Handler(android.os.Looper.getMainLooper())) }
     }
 
     fun stop() {
@@ -130,6 +174,7 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
         if (!listening) return
         val lm = context.getSystemService(Context.LOCATION_SERVICE) as LocationManager
         lm.removeUpdates(listener)
+        runCatching { lm.unregisterGnssStatusCallback(gnss) }
         listening = false
         lastFix = null
         refAltitude = null
@@ -140,6 +185,7 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
 
     private fun update(location: Location) {
         val now = SystemClock.elapsedRealtime()
+        lastFixElapsed = now
         val mps = if (location.hasSpeed()) location.speed else 0f
         motion.onGps(mps, location.accuracy)
         val kmh = (mps * 3.6f).roundToInt()
@@ -236,6 +282,7 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
             airborne = airborne,
             flight = flight,
             flying = _state.value.flying,
+            gps = gpsInfo(),
         )
     }
 

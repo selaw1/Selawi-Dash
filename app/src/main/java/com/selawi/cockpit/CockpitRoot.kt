@@ -54,6 +54,7 @@ import com.selawi.cockpit.core.design.CockpitTheme
 import com.selawi.cockpit.core.design.Space
 import com.selawi.cockpit.core.platform.CrashLog
 import com.selawi.cockpit.core.platform.hasLocationPermission
+import com.selawi.cockpit.core.platform.hasPreciseLocation
 import com.selawi.cockpit.core.platform.openCarHome
 import com.selawi.cockpit.core.platform.tryStart
 import com.selawi.cockpit.data.local.Backdrop
@@ -157,7 +158,8 @@ fun CockpitRoot(activity: MainActivity, app: CockpitApplication) {
             app.driving.start()
         }
         LaunchedEffect(Unit) {
-            if (!activity.hasLocationPermission()) {
+            // Precise location is what the GPS needs; with approximate only, Android offers the upgrade.
+            if (!activity.hasPreciseLocation()) {
                 locationRequest.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
             }
         }
