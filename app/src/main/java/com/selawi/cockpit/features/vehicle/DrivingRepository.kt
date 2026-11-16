@@ -99,6 +99,8 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
     private var refAltitude: Double? = null
     private var refAltitudeAt = 0L
     private var climb = 0f
+    private var verticalSince = 0L
+    private var levelSince = 0L
     private var airMs = 0L
     private var landedAt = 0L
     private var flight = FlightStats()
@@ -238,13 +240,19 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
     }
 
     /**
-     * Plane or car, and ground or air, from speed and altitude. A plane's speed (250 km/h for three
-     * seconds) is something no car on the road reaches; it counts as a plane again for car speeds
-     * only after three minutes below 60 km/h, so taxiing to the gate keeps the plane.
-     * In the air: above 300 km/h, or 60 m above the height the plane last rolled slowly at (the
-     * runway), never below 200 km/h: planes leave and meet the runway faster than that, and a fast car
-     * climbing a mountain road does not. GPS altitude is above sea level, so the runway's own
-     * height comes from those slow fixes.
+     * Plane or car, and ground or air.
+     *
+     * Plane or car: a plane's speed (250 km/h for three seconds) is something no car on the road
+     * reaches. It stays a plane until three minutes below 60 km/h, so landing, rolling out and
+     * taxiing to the gate keep the plane.
+     *
+     * Ground or air: GPS altitude is above sea level, not above the ground (a car in the hills
+     * reads higher than a plane on many runways), so the height itself cannot tell. How fast it
+     * changes can: in the air a plane climbs or descends steadily, on the runway it holds level.
+     * - In the air: above 300 km/h; or above 150 km/h while climbing or descending faster than
+     *   2.5 m/s for ten seconds; or 60 m above the height the plane last rolled slowly at.
+     * - On the ground: below 120 km/h; or below 200 km/h with the height level for five seconds
+     *   (the touchdown). This works whatever the airports' heights.
      */
     private fun updateFlight(now: Long, kmh: Int, altitude: Double?) {
         if (kmh >= 250) {
@@ -260,6 +268,25 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
                 crawlSince = 0L
             }
         }
+        // Climb rate over at least two seconds, smoothed, so GPS height jitter does not show.
+        if (altitude != null) {
+            val ref = refAltitude
+            if (ref == null) {
+                refAltitude = altitude
+                refAltitudeAt = now
+            } else if (now - refAltitudeAt >= 2_000) {
+                val rate = ((altitude - ref) / ((now - refAltitudeAt) / 1000.0)).toFloat()
+                climb = climb * 0.6f + rate.coerceIn(-60f, 60f) * 0.4f
+                refAltitude = altitude
+                refAltitudeAt = now
+            }
+        }
+        val vertical = kotlin.math.abs(climb)
+        if (altitude != null && vertical > 2.5f) { if (verticalSince == 0L) verticalSince = now } else verticalSince = 0L
+        if (altitude != null && vertical < 1.2f) { if (levelSince == 0L) levelSince = now } else levelSince = 0L
+        val steadyVertical = verticalSince != 0L && now - verticalSince >= 10_000
+        val level = levelSince != 0L && now - levelSince >= 5_000
+
         if (altitude != null && kmh < 100 && !airborne) {
             groundAltitude = groundAltitude?.let { it * 0.8 + altitude * 0.2 } ?: altitude
         }
@@ -267,9 +294,10 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
         val wasAirborne = airborne
         airborne = when {
             kmh >= 300 -> true
-            kmh < 200 -> false
-            aboveGround != null && aboveGround > 60 -> true
-            aboveGround != null && aboveGround < 25 -> false
+            kmh < 120 -> false
+            kmh >= 150 && steadyVertical -> true
+            kmh < 200 && level -> false
+            kmh >= 200 && aboveGround != null && aboveGround > 60 -> true
             else -> airborne
         }
         if (airborne && !wasAirborne) {
@@ -280,18 +308,6 @@ class DrivingRepository(private val context: Context, scope: kotlinx.coroutines.
             }
         }
         if (!airborne && wasAirborne) landedAt = now
-        // Climb rate over at least two seconds, smoothed, so GPS height jitter does not show.
-        if (altitude == null) return
-        val ref = refAltitude
-        if (ref == null) {
-            refAltitude = altitude
-            refAltitudeAt = now
-        } else if (now - refAltitudeAt >= 2_000) {
-            val rate = ((altitude - ref) / ((now - refAltitudeAt) / 1000.0)).toFloat()
-            climb = climb * 0.6f + rate.coerceIn(-60f, 60f) * 0.4f
-            refAltitude = altitude
-            refAltitudeAt = now
-        }
     }
 
     private companion object {

@@ -16,8 +16,9 @@ It is a normal app the driver opens; it does not replace or change BYD's softwar
 - **Calls:** a card while a call rings or runs, with a button to the car's phone app.
 - **Flight mode:** on a phone in a plane, the car turns into an airliner once the GPS speed passes
   250 km/h (or with the plane button in quick controls). It rolls on a runway, then flies above the
-  clouds with its gear up, showing ground speed, altitude, climb rate and the flight's distance,
-  time in the air, highest altitude and top speed. GPS works in airplane mode; a window seat
+  clouds with its gear up, showing ground speed, altitude, ascending or descending with the rate,
+  and the flight's distance, time in the air, highest altitude and top speed. Runway or sky comes
+  from how fast the GPS altitude changes, so it works at airports of any height. GPS works in airplane mode; a window seat
   helps.
 - **Time and weather:** current conditions, the next six hours, sunrise and sunset (Open-Meteo).
 - **Dock:** home and all apps on the left, pinned apps in the middle, settings on the right.

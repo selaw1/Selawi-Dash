@@ -148,7 +148,11 @@ fun VehiclePanel(
             Row(side.fillMaxWidth()) {
                 TripStat(String.format(Locale.US, "%.0f", flight.distanceKm), "KM FLOWN", Modifier.weight(1f))
                 TripStat(minutes(flight.airSeconds), "IN THE AIR", Modifier.weight(1f))
-                TripStat(state.altitudeM?.let { String.format(Locale.US, "%,d", it) } ?: "–", "ALT M", Modifier.weight(1f))
+                // The altitude takes the climb's colour while the plane ascends or descends.
+                TripStat(
+                    state.altitudeM?.let { String.format(Locale.US, "%,d", it) } ?: "–", "ALT M", Modifier.weight(1f),
+                    (if (state.airborne) climbColour(state.climbMps) else null) ?: CockpitColors.TextPrimary,
+                )
                 TripStat(String.format(Locale.US, "%,d", flight.maxAltitudeM), "MAX ALT M", Modifier.weight(1f))
                 TripStat("${flight.maxKmh}", "TOP KM/H", Modifier.weight(1f))
             }
@@ -268,23 +272,49 @@ private fun MotionTag(m: MotionState) {
     }
 }
 
-/** In the air: climbing or descending, with the rate in metres a minute, once it is clear. */
+/** Colours for the climb, like the ones for speed: accent going up, amber coming down. */
+private val Descend = Color(0xFFFFB74D)
+
+private fun climbColour(climbMps: Float): Color? = when {
+    climbMps >= 1.5f -> CockpitColors.Accent
+    climbMps <= -1.5f -> Descend
+    else -> null
+}
+
+/**
+ * In the air: ascending or descending, with the rate in metres a minute, shown the way braking
+ * and accelerating are on the road.
+ */
 @Composable
 private fun ClimbTag(climbMps: Float) {
-    val label = when {
-        climbMps >= 1.5f -> "CLIMBING"
-        climbMps <= -1.5f -> "DESCENDING"
-        else -> null
-    }
-    AnimatedVisibility(visible = label != null, enter = fadeIn(tween(150)), exit = fadeOut(tween(400))) {
+    val colour = climbColour(climbMps)
+    AnimatedVisibility(visible = colour != null, enter = fadeIn(tween(150)), exit = fadeOut(tween(400))) {
+        val up = climbMps > 0
+        val shown = colour ?: CockpitColors.Accent
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Box(Modifier.size(4.dp).clip(CircleShape).background(CockpitColors.TextTertiary))
+            ClimbArrow(up, shown, Modifier.size(18.dp))
             Text(
-                (label ?: "") + String.format(Locale.US, " %+,d m/min", (climbMps * 60).toInt()),
+                (if (up) "ASCENDING" else "DESCENDING") + String.format(Locale.US, " %+,d m/min", (climbMps * 60).toInt()),
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                color = CockpitColors.Accent,
+                color = shown,
             )
         }
+    }
+}
+
+/** An arrow in a circle, pointing up while climbing and down while descending. */
+@Composable
+private fun ClimbArrow(up: Boolean, colour: Color, modifier: Modifier) {
+    Canvas(modifier) {
+        val s = size.minDimension
+        val c = center
+        val stroke = s * 0.1f
+        val d = if (up) -1f else 1f
+        drawCircle(colour, radius = s * 0.44f, center = c, style = Stroke(stroke))
+        drawLine(colour, Offset(c.x, c.y - d * s * 0.22f), Offset(c.x, c.y + d * s * 0.22f), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(colour, Offset(c.x, c.y + d * s * 0.22f), Offset(c.x - s * 0.15f, c.y + d * s * 0.07f), strokeWidth = stroke, cap = StrokeCap.Round)
+        drawLine(colour, Offset(c.x, c.y + d * s * 0.22f), Offset(c.x + s * 0.15f, c.y + d * s * 0.07f), strokeWidth = stroke, cap = StrokeCap.Round)
     }
 }
 
@@ -306,10 +336,11 @@ private fun BrakeSymbol(colour: Color, modifier: Modifier) {
 }
 
 @Composable
-private fun TripStat(value: String, label: String, modifier: Modifier) {
+private fun TripStat(value: String, label: String, modifier: Modifier, colour: Color = CockpitColors.TextPrimary) {
     // Each number and its label sit centred in their part of the row, under the car.
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.headlineMedium, color = CockpitColors.TextPrimary, maxLines = 1)
+        val shown by animateColorAsState(colour, tween(250), label = "statColour")
+        Text(value, style = MaterialTheme.typography.headlineMedium, color = shown, maxLines = 1)
         Spacer(Modifier.height(2.dp))
         Text(
             label,
