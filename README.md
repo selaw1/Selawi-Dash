@@ -79,7 +79,7 @@ Car facts the code relies on are in [docs/CAR.md](docs/CAR.md). The plane model 
 - Plane: made for this project by `tools/plane/make_plane.py`, MIT like the code.
 - Fonts: Space Grotesk and Inter, SIL Open Font License 1.1 (`app/src/main/assets/licenses`).
 - Weather: Open-Meteo. Covers: iTunes Search API.
-- Online flight data: adsb.lol (Open Database License) and adsb.fi.
+- Online flight data: adsb.lol (Open Database License) and adsb.fi; callsigns from adsbdb.com.
 
 ## License
 

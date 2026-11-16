@@ -36,6 +36,15 @@ class SettingsStore(private val context: Context) {
 
     suspend fun setFlightNumber(number: String) = context.dataStore.edit { it[flightNumberKey] = number }
 
+    private val callsignKey = stringPreferencesKey("flight_callsign")
+
+    /** The callsign looked up for a flight number, saved as "RJ183=RJA183" so it is fetched once. */
+    val savedCallsign: Flow<Pair<String, String>?> = context.dataStore.data.map { prefs ->
+        prefs[callsignKey]?.split("=")?.takeIf { it.size == 2 }?.let { it[0] to it[1] }
+    }
+
+    suspend fun saveCallsign(number: String, callsign: String) = context.dataStore.edit { it[callsignKey] = "$number=$callsign" }
+
     /** The jet's colour in flight mode, kept apart from the car's; pearl white by default. */
     val planePaint: Flow<String> = context.dataStore.data.map { it[planePaintKey] ?: PLANE_DEFAULT }
 

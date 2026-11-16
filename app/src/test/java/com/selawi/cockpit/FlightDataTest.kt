@@ -17,15 +17,18 @@ import org.junit.Test
 
 class FlightDataTest {
     @Test
-    fun flightNumbersBecomeCallsigns() {
-        assertEquals("RJA183", FlightNumbers.callsign("RJ183"))
-        assertEquals("RJA183", FlightNumbers.callsign("rj 183"))
-        assertEquals("RJA12", FlightNumbers.callsign("RJ0012"))
-        assertEquals("UAE201", FlightNumbers.callsign("EK201"))
-        assertEquals("RJA183", FlightNumbers.callsign("RJA183"))
-        assertEquals("BAW12AB", FlightNumbers.callsign("BAW12AB"))
-        assertNull(FlightNumbers.callsign("hello"))
-        assertNull(FlightNumbers.callsign("ZZ123"))
+    fun flightNumbersAndCallsigns() {
+        assertEquals("RJ183", FlightNumbers.normalize("rj 183"))
+        assertTrue(FlightNumbers.isCallsign("RJA183"))
+        assertTrue(FlightNumbers.isCallsign("BAW12AB"))
+        assertTrue(!FlightNumbers.isCallsign("RJ183"))
+        assertTrue(FlightNumbers.looksValid("RJ183"))
+        assertTrue(!FlightNumbers.looksValid("HELLO"))
+        // adsbdb's answer for RJ271, as returned by the live service.
+        val known = """{"response":{"flightroute":{"callsign":"RJ271","callsign_icao":"RJA271","callsign_iata":"RJ271",
+            "airline":{"name":"Royal Jordanian","icao":"RJA","iata":"RJ"}}}}"""
+        assertEquals("RJA271", FlightNumbers.parseAdsbdb(known))
+        assertNull(FlightNumbers.parseAdsbdb("""{"response":"unknown callsign"}"""))
     }
 
     @Test

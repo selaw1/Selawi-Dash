@@ -50,11 +50,12 @@ object FlightDataStatus {
         if (source == FlightSource.Gps) {
             lines += "Online flight data is off: GPS only."
         } else {
-            val cs = online.callsign ?: FlightNumbers.callsign(flightNumber) ?: flightNumber
+            val cs = online.callsign ?: FlightNumbers.normalize(flightNumber)
             lines += when (online.state) {
                 OnlineState.Standby -> "Online: starts if the GPS still has no fix after 15 seconds."
                 OnlineState.NoFlightNumber -> "Online: enter your flight number below to use online flight data.".also { problem = true }
                 OnlineState.BadFlightNumber -> "Online: \"$flightNumber\" doesn't look like a flight number. Use the airline code and number, like RJ183, or the callsign, like RJA183.".also { problem = true }
+                OnlineState.UnknownFlight -> "Online: adsbdb doesn't know $cs, so its callsign is unknown. Check the number, or type the callsign (like RJA183).".also { problem = true }
                 OnlineState.NoInternet -> "Online: no internet. Connect to the plane's Wi-Fi and buy internet; messaging-only packages usually block it.".also { problem = true }
                 OnlineState.NoInternetYet -> "Online: the Wi-Fi has no internet access yet. Log in or buy internet on the Wi-Fi page.".also { problem = true }
                 OnlineState.Searching -> "Online: looking up $cs…"

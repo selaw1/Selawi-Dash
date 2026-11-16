@@ -312,6 +312,7 @@ private fun PositionTag(state: DrivingState, onOpenSettings: () -> Unit) {
         state.source != FlightSource.Online && gps.state == GpsState.Fixed -> null
         onlineInUse -> when (online.state) {
             OnlineState.NoFlightNumber, OnlineState.BadFlightNumber -> Triple("ADD FLIGHT NUMBER", BrakeRed, onOpenSettings)
+            OnlineState.UnknownFlight -> Triple("UNKNOWN FLIGHT $cs", BrakeRed, onOpenSettings)
             OnlineState.NoInternet, OnlineState.NoInternetYet -> Triple("NO INTERNET", BrakeRed, wifiSettings)
             OnlineState.NotFound -> Triple("$cs NOT FOUND ONLINE", Amber, onOpenSettings)
             OnlineState.Stale -> Triple("$cs OUT OF RANGE ONLINE", Amber, null)

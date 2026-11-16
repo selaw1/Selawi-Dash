@@ -23,7 +23,7 @@ import java.net.URL
  * behind dimmable windows). Every airliner broadcasts its own GPS position, altitude, speed and
  * heading by radio (ADS-B); volunteers' receivers collect it, and adsb.lol (open data, ODbL) and
  * adsb.fi share it free. The flight is found by its callsign, made from the flight number
- * the user types (RJ183 → RJA183). Needs internet on board; the data is a few seconds behind the
+ * the user types (RJ183 → RJA183), looked up once from adsbdb.com. Needs internet on board; the data is a few seconds behind the
  * plane and can pause where there are no receivers, often over the sea.
  */
 data class OnlineFix(
@@ -44,6 +44,8 @@ enum class OnlineState {
     Standby,
     NoFlightNumber,
     BadFlightNumber,
+    /** adsbdb doesn't know this flight number, so its callsign is unknown. */
+    UnknownFlight,
     NoInternet,
     /** On a Wi-Fi without internet yet, as before logging in or paying on the plane's Wi-Fi page. */
     NoInternetYet,
@@ -72,25 +74,25 @@ private sealed interface Answer {
     data class Failed(val reason: String) : Answer
 }
 
-/** Flight number to the callsign planes broadcast: RJ183 → RJA183. ICAO callsigns pass through. */
+/**
+ * Flight numbers and callsigns. A plane broadcasts its callsign (RJA183), not the flight number
+ * people book (RJ183); adsbdb.com turns one into the other for any airline, once per number.
+ */
 object FlightNumbers {
-    private val icao = mapOf(
-        "RJ" to "RJA", "EK" to "UAE", "QR" to "QTR", "EY" to "ETD", "TK" to "THY", "LH" to "DLH", "BA" to "BAW",
-        "AF" to "AFR", "KL" to "KLM", "SV" to "SVA", "MS" to "MSR", "FZ" to "FDB", "G9" to "ABY", "XY" to "KNE",
-        "WY" to "OMA", "GF" to "GFA", "KU" to "KAC", "ME" to "MEA", "J9" to "JZR", "PC" to "PGT", "W6" to "WZZ",
-        "FR" to "RYR", "U2" to "EZY", "LX" to "SWR", "OS" to "AUA", "AZ" to "ITY", "IB" to "IBE", "UA" to "UAL",
-        "AA" to "AAL", "DL" to "DAL", "AC" to "ACA", "SQ" to "SIA", "CX" to "CPA", "QF" to "QFA", "NH" to "ANA",
-        "JL" to "JAL", "ET" to "ETH", "A3" to "AEE", "LO" to "LOT", "SK" to "SAS", "AY" to "FIN", "VS" to "VIR",
-        "TP" to "TAP", "SN" to "BEL", "EI" to "EIN", "AI" to "AIC", "6E" to "IGO", "PK" to "PIA", "UL" to "ALK",
-    )
+    /** Upper case, letters and digits only: "rj 183" → "RJ183". */
+    fun normalize(input: String): String = input.uppercase().filter { it.isLetterOrDigit() }
 
-    /** The callsign for [input], or null when it does not look like a flight number. */
-    fun callsign(input: String): String? {
-        val s = input.uppercase().filter { it.isLetterOrDigit() }
-        if (Regex("^[A-Z]{3}[0-9]{1,4}[A-Z]{0,2}$").matches(s)) return s
-        val m = Regex("^([A-Z0-9]{2})0*([0-9]{1,4}[A-Z]?)$").matchEntire(s) ?: return null
-        val airline = icao[m.groupValues[1]] ?: return null
-        return airline + m.groupValues[2]
+    /** Already a callsign (three letters, then the number): no lookup needed. */
+    fun isCallsign(s: String): Boolean = Regex("^[A-Z]{3}[0-9]{1,4}[A-Z]{0,2}$").matches(s)
+
+    /** Looks like a flight number at all (airline code, then the number). */
+    fun looksValid(s: String): Boolean = isCallsign(s) || Regex("^[A-Z0-9]{2}[0-9]{1,4}[A-Z]?$").matches(s)
+
+    /** The callsign from adsbdb's answer, or null when it doesn't know the flight. */
+    fun parseAdsbdb(json: String): String? {
+        val response = JSONObject(json).opt("response") as? JSONObject ?: return null
+        val route = response.optJSONObject("flightroute") ?: return null
+        return route.optString("callsign_icao").trim().ifEmpty { null }
     }
 }
 
@@ -167,16 +169,17 @@ class OnlineFlightData(
             _status.value = OnlineStatus(OnlineState.NoFlightNumber)
             return
         }
-        val callsign = FlightNumbers.callsign(number)
-        if (callsign == null) {
+        val flight = FlightNumbers.normalize(number)
+        if (!FlightNumbers.looksValid(flight)) {
             _status.value = OnlineStatus(OnlineState.BadFlightNumber)
             return
         }
         when (internet()) {
-            Internet.None -> { _status.value = OnlineStatus(OnlineState.NoInternet, callsign); return }
-            Internet.NotYet -> { _status.value = OnlineStatus(OnlineState.NoInternetYet, callsign); return }
+            Internet.None -> { _status.value = OnlineStatus(OnlineState.NoInternet, flight); return }
+            Internet.NotYet -> { _status.value = OnlineStatus(OnlineState.NoInternetYet, flight); return }
             Internet.Yes -> Unit
         }
+        val callsign = callsignFor(flight) ?: return
         if (_status.value.state != OnlineState.Live) _status.value = _status.value.copy(state = OnlineState.Searching, callsign = callsign)
         // Ask each service in turn and keep what each one answered, so a failure is never vague.
         val results = mutableListOf<String>()
@@ -212,6 +215,32 @@ class OnlineFlightData(
             stale != null -> OnlineStatus(OnlineState.Stale, callsign, staleFrom, stale, now, results)
             reached -> OnlineStatus(OnlineState.NotFound, callsign, null, null, now, results)
             else -> OnlineStatus(OnlineState.Unreachable, callsign, null, null, now, results)
+        }
+    }
+
+    /**
+     * The callsign for a flight number: as typed when it already is one, the saved one when this
+     * number was looked up before, else asked from adsbdb once and saved.
+     */
+    private suspend fun callsignFor(flight: String): String? {
+        if (FlightNumbers.isCallsign(flight)) return flight
+        settings.savedCallsign.first()?.let { (number, callsign) -> if (number == flight) return callsign }
+        _status.value = OnlineStatus(OnlineState.Searching, flight)
+        return when (val answer = withContext(Dispatchers.IO) { fetch(ADSBDB + flight) }) {
+            is Answer.Failed -> {
+                _status.value = OnlineStatus(OnlineState.Unreachable, flight, results = listOf("adsbdb (callsign lookup): ${answer.reason}"))
+                null
+            }
+            is Answer.Body -> {
+                val callsign = runCatching { FlightNumbers.parseAdsbdb(answer.text) }.getOrNull()
+                if (callsign == null) {
+                    _status.value = OnlineStatus(OnlineState.UnknownFlight, flight)
+                    null
+                } else {
+                    settings.saveCallsign(flight, callsign)
+                    callsign
+                }
+            }
         }
     }
 
@@ -259,5 +288,8 @@ class OnlineFlightData(
             "adsb.lol" to "https://api.adsb.lol/v2/callsign/",
             "adsb.fi" to "https://opendata.adsb.fi/api/v2/callsign/",
         )
+
+        /** Flight number to callsign for any airline. */
+        const val ADSBDB = "https://api.adsbdb.com/v0/callsign/"
     }
 }

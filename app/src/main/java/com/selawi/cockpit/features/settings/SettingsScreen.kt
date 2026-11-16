@@ -238,7 +238,7 @@ fun SettingsScreen(state: SettingsState, actions: SettingsActions) {
             Text(
                 "Default 3D car: \"Car Concept\" from the Khronos glTF Sample Assets, © 2024 Darmstadt Graphics Group GmbH, " +
                     "model and textures by Eric Chadwick, licensed CC BY 4.0. Logos removed. " +
-                    "Weather by Open-Meteo. Online flight data from adsb.lol (ODbL) and adsb.fi. Fonts: Space Grotesk and Inter, SIL Open Font License 1.1.",
+                    "Weather by Open-Meteo. Online flight data from adsb.lol (ODbL) and adsb.fi; callsigns from adsbdb. Fonts: Space Grotesk and Inter, SIL Open Font License 1.1.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = CockpitColors.TextSecondary,
             )
